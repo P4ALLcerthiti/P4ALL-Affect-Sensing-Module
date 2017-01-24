@@ -14,6 +14,17 @@
 //////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////
 
+affect_sensing_module::affect_sensing_module()
+{
+	m_file = new txt_file();
+
+	m_stress_results = new results();
+
+	m_print_to_txt_enabled = false ;
+	m_print_to_features_enabled = false ;
+
+	set_Column_Numbers();
+}
 
 affect_sensing_module::affect_sensing_module( int secondsBetweenIntervals )
 {
@@ -24,32 +35,27 @@ affect_sensing_module::affect_sensing_module( int secondsBetweenIntervals )
 	m_seconds_between_segments = secondsBetweenIntervals ;
 
 	m_print_to_txt_enabled = false ;
+	m_print_to_features_enabled = false ;
 
-	skinCond_ColNr = 0;
-	ekgIBI_ColNr = 1;
-	ekgHR_ColNr = 2;
-	ekgLF_ColNr = 3;
-	ekgHF_ColNr = 4;
+	set_Column_Numbers();
 }
 
-affect_sensing_module::affect_sensing_module( string fileName, int secondsBetweenIntervals )
+affect_sensing_module::affect_sensing_module( std::string fileName, int secondsBetweenIntervals )
 {
 	m_file = new txt_file();
 	m_file->fileName = fileName;
 
-	load_file_2( m_file->fileName );
+	//load_file_2( m_file->fileName );
+	load_file_ITI_2010( m_file->fileName );
 
 	m_stress_results = new results();
 
 	m_seconds_between_segments = secondsBetweenIntervals ;
 
 	m_print_to_txt_enabled = false ;
+	m_print_to_features_enabled = false ;
 
-	skinCond_ColNr = 0;
-	ekgIBI_ColNr = 1;
-	ekgHR_ColNr = 2;
-	ekgLF_ColNr = 3;
-	ekgHF_ColNr = 4;
+	set_Column_Numbers();
 
 }
 
@@ -73,25 +79,38 @@ affect_sensing_module::~affect_sensing_module()
 		delete m_stress_results;
 }
 
+void affect_sensing_module::set_Column_Numbers()
+{
+	skinCond_ColNr = 0;
+	ekgIBI_ColNr = 1;
+	ekgLF_ColNr = 2;
+	ekgHF_ColNr = 3;
+}
 
+//////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////
 /*							public functions							*/
 //////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////
 
-
-void affect_sensing_module::set_fileName( string fileName )
+	void affect_sensing_module::set_seconds_between_Intervals( int secs )
+	{
+		m_seconds_between_segments = secs ;
+	}
+	
+	void affect_sensing_module::set_fileName( std::string fileName_str )
 {
-	m_file->fileName = fileName ;
+	m_file->fileName = fileName_str ;
 
-	load_file_2( m_file->fileName );
+	load_file_from_sensor_2( m_file->fileName );
 }
-
-string affect_sensing_module::get_fileName()
+	
+	string affect_sensing_module::get_fileName()
 {
 	return m_file->fileName ;
 }
-
-void affect_sensing_module::reset_fileName( string fileName )
+	
+	void affect_sensing_module::reset_fileName( std::string fileName )
 {
 	if ( m_file->data.size() != 0 )
 	{
@@ -108,24 +127,47 @@ void affect_sensing_module::reset_fileName( string fileName )
 
 	m_file->fileName = fileName ;
 
-	load_file_2( m_file->fileName );
+	load_file_from_sensor_2( m_file->fileName );
 }
-
-void affect_sensing_module::enable_print_txt()
+	
+	void affect_sensing_module::enable_print_txt()
 {
 	m_print_to_txt_enabled = true ;
 }
-
-void affect_sensing_module::calculate_GSR_mean()
+	
+	void affect_sensing_module::enable_print_features()
+{
+	m_print_to_features_enabled = true ;
+}
+	
+	//////////////////////////////////////////////////////////////////////////
+	/*									GSR									*/
+	//////////////////////////////////////////////////////////////////////////
+	
+	void affect_sensing_module::calculate_GSR_mean()
 {
 	vector< int > timeSegments = segmentTime( m_seconds_between_segments );
-	
+
+
+	//std::vector<std::string> subName_trialNum = getSubNameAndTrialNum(m_file->fileName);
+	//
+	//if ( subName_trialNum[1].find("_trial1") != std::string::npos || 
+	//	 subName_trialNum[1].find("_trial2") != std::string::npos || 
+	//	 subName_trialNum[1].find("_trial5") != std::string::npos || 
+	//	 subName_trialNum[1].find("_trial6") != std::string::npos || 
+	//	 subName_trialNum[1].find("_rest_initial") != std::string::npos  ||
+	//	 subName_trialNum[1].find("_rest_1") != std::string::npos  ||
+	//	 subName_trialNum[1].find("_rest_2") != std::string::npos  )
+	//{
+	//	return;
+	//}
+
 	vector< double > results_GSR_mean_segmented ;
 	for ( unsigned int i=0 ; i<(timeSegments.size()) ; i += 2 )
 	{
 		results_GSR_mean_segmented.push_back(calculate_GSR_mean( timeSegments[i] , timeSegments[i+1]) );
 	}
-
+	
 	if ( m_print_to_txt_enabled )
 	{
 		std::stringstream ss;
@@ -146,20 +188,6 @@ void affect_sensing_module::calculate_GSR_mean()
 		ofs.close();
 	}
 
-	if ( m_print_to_ini_enabled )
-	{
-		std::stringstream ss;
-		ss << "Segments_(" << m_seconds_between_segments << "_" << (timeSegments.size()/2) << ")_Results.ini";
-		string toBeReplacedWith = ss.str();
-
-		string outputFilePath = replaceFilePath(m_file->fileName, toBeReplacedWith);
-
-		//CIniFile ini;
-		//ini.SetIniFileName(A2CT(outputFilePath.c_str()));
-		//ini.WriteStruct(NULL,NULL);
-
-	}
-
 	for (unsigned int i=0 ; i<results_GSR_mean_segmented.size() ; i++)
 		m_stress_results->m_GSR_mean.push_back( results_GSR_mean_segmented[i] );
 
@@ -167,8 +195,8 @@ void affect_sensing_module::calculate_GSR_mean()
 	timeSegments.clear();
 
 }
-
-void affect_sensing_module::calculate_GSR_Standard_Deviation()
+	
+	void affect_sensing_module::calculate_GSR_Standard_Deviation()
 {
 	vector< int > timeSegments = segmentTime( m_seconds_between_segments );
 
@@ -204,18 +232,20 @@ void affect_sensing_module::calculate_GSR_Standard_Deviation()
 	for (unsigned int i=0 ; i<results_GSR_SD_segmented.size() ; i++)
 		m_stress_results->m_GSR_sd.push_back(results_GSR_SD_segmented[i]);
 
+	m_stress_results->m_num_of_segments = timeSegments.size() / 2 ;
+	
 	results_GSR_SD_segmented.clear();
 	timeSegments.clear();
 }
-
-void affect_sensing_module::calculate_GSR_RootMeanSquare()
+	
+	void affect_sensing_module::calculate_GSR_1stDerivative_RootMeanSquare()
 {
 	vector< int > timeSegments = segmentTime( m_seconds_between_segments );
 
 	vector< double > results_GSR_RMS_segmented ;
 	for ( unsigned int i=0 ; i<(timeSegments.size()) ; i += 2 )
 	{
-		results_GSR_RMS_segmented.push_back(calculate_GSR_RootMeanSquare( timeSegments[i] , timeSegments[i+1]) );
+		results_GSR_RMS_segmented.push_back(calculate_GSR_1stDerivative_RootMeanSquare( timeSegments[i] , timeSegments[i+1]) );
 	}
 
 	if ( m_print_to_txt_enabled )
@@ -241,13 +271,51 @@ void affect_sensing_module::calculate_GSR_RootMeanSquare()
 	}
 
 	for (unsigned int i=0 ; i<results_GSR_RMS_segmented.size() ; i++)
-		m_stress_results->m_GSR_RMS.push_back(results_GSR_RMS_segmented[i]);
+		m_stress_results->m_GSR_1stDer_RMS.push_back(results_GSR_RMS_segmented[i]);
 
 	results_GSR_RMS_segmented.clear();
 	timeSegments.clear();
 }
+	
+	void affect_sensing_module::calculate_GSR_1stDerivative_Average()
+{
+	vector< int > timeSegments = segmentTime( m_seconds_between_segments );
 
-void affect_sensing_module::calculate_GSR_SCR_Features()
+	vector< double > results_GSR_AVG_segmented ;
+	for ( unsigned int i=0 ; i<(timeSegments.size()) ; i += 2 )
+	{
+		results_GSR_AVG_segmented.push_back(calculate_GSR_1stDerivative_Average( timeSegments[i] , timeSegments[i+1]) );
+	}
+
+	if ( m_print_to_txt_enabled )
+	{
+		std::stringstream ss;
+		ss << "Segments_(" << m_seconds_between_segments << "_" << (timeSegments.size()/2) << ")_";
+		ss << "GSR_AVG.txt" ;
+		string toBeReplacedWith = ss.str();
+
+		string outputFilePath = replaceFilePath(m_file->fileName, toBeReplacedWith );
+
+		ofstream ofs;
+		ofs.open(outputFilePath);
+
+		for (unsigned int i=0 ; i<results_GSR_AVG_segmented.size() ; i++)
+		{
+			ofs << "Segment Number " << i+1 << " :" << endl ;
+
+			ofs << "GSR AVG : " << results_GSR_AVG_segmented[i] << endl << endl ;
+		}
+		ofs.close();
+	}
+
+	for (unsigned int i=0 ; i<results_GSR_AVG_segmented.size() ; i++)
+		m_stress_results->m_GSR_1stDer_AVG.push_back(results_GSR_AVG_segmented[i]);
+
+	results_GSR_AVG_segmented.clear();
+	timeSegments.clear();
+}
+	
+	void affect_sensing_module::calculate_GSR_SCR_Features()
 {
 	vector< int > timeSegments = segmentTime( m_seconds_between_segments );
 
@@ -262,7 +330,6 @@ void affect_sensing_module::calculate_GSR_SCR_Features()
 	{
 		std::stringstream ss;
 		ss << "Segments_(" << m_seconds_between_segments << "_" << (timeSegments.size()/2) << ")_";
-		//ss << "GSR_SCR_Features_Segmented_Results.txt" ;
 		ss << "GSR_SCR_Features.txt" ;
 		string toBeReplacedWith = ss.str();
 	
@@ -275,7 +342,7 @@ void affect_sensing_module::calculate_GSR_SCR_Features()
 		{
 			ofs << "Segment Number " << i+1 << " :" << endl ;
 		
-				ofs << "Size of Maximum GSR Values for SCR " << results_GSR_SCR_segmented[i][0] << endl ;
+				ofs << "SCR RATE " << results_GSR_SCR_segmented[i][0] << endl ;
 				ofs << "Mean Startles Amplitude " << results_GSR_SCR_segmented[i][1] << endl ;
 				ofs << "Mean Startles Duration " << results_GSR_SCR_segmented[i][2] << endl << endl ;
 		}
@@ -284,6 +351,7 @@ void affect_sensing_module::calculate_GSR_SCR_Features()
 
 	for (unsigned int i=0 ; i<results_GSR_SCR_segmented.size() ; i++)
 	{
+		m_stress_results->m_GSR_Rate.push_back(results_GSR_SCR_segmented[i][0]);
 		m_stress_results->m_GSR_Amplitude.push_back(results_GSR_SCR_segmented[i][1]);
 		m_stress_results->m_GSR_Duration .push_back(results_GSR_SCR_segmented[i][2]);
 	}
@@ -293,8 +361,8 @@ void affect_sensing_module::calculate_GSR_SCR_Features()
 	results_GSR_SCR_segmented.clear();
 	timeSegments.clear();
 }
-
-void affect_sensing_module::calculate_GSR_Picard_1()
+	
+	void affect_sensing_module::calculate_GSR_Picard_1()
 {
 	vector< int > timeSegments = segmentTime( m_seconds_between_segments );
 
@@ -322,7 +390,7 @@ void affect_sensing_module::calculate_GSR_Picard_1()
 		{
 			ofs << "Segment Number " << i+1 << " :" << endl ;
 	
-			ofs << "GSR Picard_1 : " << results_GSR_Picard_segmented[i] << endl << endl ;
+			ofs << "GSR Picard_1 (delta) : " << results_GSR_Picard_segmented[i] << endl << endl ;
 		}
 		ofs.close();
 	}
@@ -333,8 +401,8 @@ void affect_sensing_module::calculate_GSR_Picard_1()
 	results_GSR_Picard_segmented.clear();
 	timeSegments.clear();
 }
-
-void affect_sensing_module::calculate_GSR_Picard_2()
+	
+	void affect_sensing_module::calculate_GSR_Picard_2()
 {
 	vector< int > timeSegments = segmentTime( m_seconds_between_segments );
 
@@ -362,7 +430,7 @@ void affect_sensing_module::calculate_GSR_Picard_2()
 		{
 			ofs << "Segment Number " << i+1 << " :" << endl ;
 	
-			ofs << "GSR Picard_2 : " << results_GSR_Picard_segmented[i] << endl << endl ;
+			ofs << "GSR Picard_2 (deltaNorm) : " << results_GSR_Picard_segmented[i] << endl << endl ;
 		}
 		ofs.close();
 	}
@@ -373,8 +441,8 @@ void affect_sensing_module::calculate_GSR_Picard_2()
 	results_GSR_Picard_segmented.clear();
 	timeSegments.clear();
 }
-
-void affect_sensing_module::calculate_GSR_Picard_3()
+	
+	void affect_sensing_module::calculate_GSR_Picard_3()
 {
 	vector< int > timeSegments = segmentTime( m_seconds_between_segments );
 
@@ -413,8 +481,8 @@ void affect_sensing_module::calculate_GSR_Picard_3()
 	results_GSR_Picard_segmented.clear();
 	timeSegments.clear();
 }
-
-void affect_sensing_module::calculate_GSR_Picard_F2()
+	
+	void affect_sensing_module::calculate_GSR_Picard_F2()
 {
 	vector< int > timeSegments = segmentTime( m_seconds_between_segments );
 
@@ -453,17 +521,32 @@ void affect_sensing_module::calculate_GSR_Picard_F2()
 	timeSegments.clear();
 
 }
-
-void affect_sensing_module::calculate_GSR_SCR_Percentile_Features()
+	
+	void affect_sensing_module::calculate_GSR_SCR_Percentile_Features()
 {
 	vector< int > timeSegments = segmentTime( m_seconds_between_segments );
 
-	vector< vector<double> > results_GSR_SCR_segmented ;
-	for ( unsigned int i=0 ; i<(timeSegments.size()) ; i += 2 )
-	{
 
-		results_GSR_SCR_segmented.push_back(calculate_GSR_SCR_Percentile_Features( timeSegments[i] , timeSegments[i+1]) );
+	//// results_GSR_SCR_segmented --> segments X 5
+	//vector< vector<double> > results_GSR_SCR_segmented ;
+	//for ( unsigned int i=0 ; i<(timeSegments.size()) ; i += 2 )
+	//{
+	//	results_GSR_SCR_segmented.push_back(calculate_GSR_SCR_Percentile_Features( timeSegments[i] , timeSegments[i+1]) );
+	//}
+
+	// results_GSR_SCR_segmented --> 5 X segments
+	vector< vector< double > > results_GSR_SCR_segmented ;
+	results_GSR_SCR_segmented.resize(10);
+	for ( unsigned int i=0 ; i<timeSegments.size() ; i+=2 )
+	{
+		vector<double> temp = calculate_GSR_SCR_Percentile_Features( timeSegments[i] , timeSegments[i+1] ) ;
+		for ( unsigned int j=0 ; j<temp.size() ; j++ )
+		{
+			results_GSR_SCR_segmented[j].push_back(temp[j]);
+		}
+		temp.clear();
 	}
+
 
 	if ( m_print_to_txt_enabled )
 	{
@@ -482,52 +565,42 @@ void affect_sensing_module::calculate_GSR_SCR_Percentile_Features()
 		{
 			ofs << "Segment Number " << i+1 << " :" << endl ;
 	
-			ofs << "Percentile Amplitude 25 : " << results_GSR_SCR_segmented[i][0] << endl ;
-			ofs << "Percentile Amplitude 50 : " << results_GSR_SCR_segmented[i][1] << endl ;
-			ofs << "Percentile Amplitude 75 : " << results_GSR_SCR_segmented[i][2] << endl ;
-			ofs << "Percentile Amplitude 85 : " << results_GSR_SCR_segmented[i][3] << endl ;
-			ofs << "Percentile Amplitude 95 : " << results_GSR_SCR_segmented[i][4] << endl ;
+			ofs << "Percentile Amplitude 25 : " << results_GSR_SCR_segmented[0][i] << endl ;
+			ofs << "Percentile Amplitude 50 : " << results_GSR_SCR_segmented[1][i] << endl ;
+			ofs << "Percentile Amplitude 75 : " << results_GSR_SCR_segmented[2][i] << endl ;
+			ofs << "Percentile Amplitude 85 : " << results_GSR_SCR_segmented[3][i] << endl ;
+			ofs << "Percentile Amplitude 95 : " << results_GSR_SCR_segmented[4][i] << endl ;
 	
-			ofs << "Percentile Duration 25 : "  << results_GSR_SCR_segmented[i][5] << endl ;
-			ofs << "Percentile Duration 50 : "  << results_GSR_SCR_segmented[i][6] << endl ;
-			ofs << "Percentile Duration 75 : "  << results_GSR_SCR_segmented[i][7] << endl ;
-			ofs << "Percentile Duration 85 : "  << results_GSR_SCR_segmented[i][8] << endl ;
-			ofs << "Percentile Duration 95 : "  << results_GSR_SCR_segmented[i][9] << endl << endl ;
+			ofs << "Percentile Duration 25 : "  << results_GSR_SCR_segmented[5][i] << endl ;
+			ofs << "Percentile Duration 50 : "  << results_GSR_SCR_segmented[6][i] << endl ;
+			ofs << "Percentile Duration 75 : "  << results_GSR_SCR_segmented[7][i] << endl ;
+			ofs << "Percentile Duration 85 : "  << results_GSR_SCR_segmented[8][i] << endl ;
+			ofs << "Percentile Duration 95 : "  << results_GSR_SCR_segmented[9][i] << endl << endl ;
 		}
 		ofs.close();
 	}
 
-	for (unsigned int i=0 ; i<results_GSR_SCR_segmented.size() ; i++)
-	{
-		vector<double> aaa , bbb ;
+	m_stress_results->m_GSR_Amplitude_Percentiles.resize(5);
+	m_stress_results->m_GSR_Amplitude_Percentiles[0] = results_GSR_SCR_segmented[0];
+	m_stress_results->m_GSR_Amplitude_Percentiles[1] = results_GSR_SCR_segmented[1];
+	m_stress_results->m_GSR_Amplitude_Percentiles[2] = results_GSR_SCR_segmented[2];
+	m_stress_results->m_GSR_Amplitude_Percentiles[3] = results_GSR_SCR_segmented[3];
+	m_stress_results->m_GSR_Amplitude_Percentiles[4] = results_GSR_SCR_segmented[4];
 
-		aaa.push_back(results_GSR_SCR_segmented[i][0]) ;
-		aaa.push_back(results_GSR_SCR_segmented[i][1]) ;
-		aaa.push_back(results_GSR_SCR_segmented[i][2]) ;
-		aaa.push_back(results_GSR_SCR_segmented[i][3]) ;
-		aaa.push_back(results_GSR_SCR_segmented[i][4]) ;
-
-		m_stress_results->m_GSR_Amplitude_Percentiles.push_back(aaa);
-
-		bbb.push_back(results_GSR_SCR_segmented[i][5]) ;
-		bbb.push_back(results_GSR_SCR_segmented[i][6]) ;
-		bbb.push_back(results_GSR_SCR_segmented[i][7]) ;
-		bbb.push_back(results_GSR_SCR_segmented[i][8]) ;
-		bbb.push_back(results_GSR_SCR_segmented[i][9]) ;
-
-		m_stress_results->m_GSR_Duration_Percentiles.push_back(bbb);
-
-		aaa.clear();
-		bbb.clear();
-	}
+	m_stress_results->m_GSR_Duration_Percentiles.resize(5);
+	m_stress_results->m_GSR_Duration_Percentiles[0] = results_GSR_SCR_segmented[5];
+	m_stress_results->m_GSR_Duration_Percentiles[1] = results_GSR_SCR_segmented[6];
+	m_stress_results->m_GSR_Duration_Percentiles[2] = results_GSR_SCR_segmented[7];
+	m_stress_results->m_GSR_Duration_Percentiles[3] = results_GSR_SCR_segmented[8];
+	m_stress_results->m_GSR_Duration_Percentiles[4] = results_GSR_SCR_segmented[9];
 
 	for ( unsigned int i=0 ; i<results_GSR_SCR_segmented.size() ; i++ )
 		results_GSR_SCR_segmented[i].clear();
 	results_GSR_SCR_segmented.clear();
 	timeSegments.clear();
 }
-
-void affect_sensing_module::calculate_GSR_MIN_MAX_Features()
+	
+	void affect_sensing_module::calculate_GSR_MIN_MAX_Features()
 {
 	vector< int > timeSegments = segmentTime( m_seconds_between_segments );
 
@@ -571,8 +644,8 @@ void affect_sensing_module::calculate_GSR_MIN_MAX_Features()
 	results_GSR_MINMAX_segmented.clear();
 	timeSegments.clear();
 }
-
-void affect_sensing_module::calculate_GSR_Kurtosis_Skewness()
+	
+	void affect_sensing_module::calculate_GSR_Kurtosis_Skewness()
 {
 	vector< int > timeSegments = segmentTime( m_seconds_between_segments );
 
@@ -617,8 +690,8 @@ void affect_sensing_module::calculate_GSR_Kurtosis_Skewness()
 	timeSegments.clear();
 
 }
-
-void affect_sensing_module::calculate_GSR_1st_Derivative_negativeSamplesProportion()
+	
+	void affect_sensing_module::calculate_GSR_1st_Derivative_negativeSamplesProportion()
 {
 	vector< int > timeSegments = segmentTime( m_seconds_between_segments );
 
@@ -652,13 +725,13 @@ void affect_sensing_module::calculate_GSR_1st_Derivative_negativeSamplesProporti
 	}
 
 	for (unsigned int i=0 ; i<results_GSR_1st_Derivative_negativeSamplesProportion_segmented.size() ; i++)
-		m_stress_results->m_GSR_1st_Derivatives_negativeSamplesProportion.push_back(results_GSR_1st_Derivative_negativeSamplesProportion_segmented[i]);
+		m_stress_results->m_GSR_1stDer_NegSampProp.push_back(results_GSR_1st_Derivative_negativeSamplesProportion_segmented[i]);
 
 	results_GSR_1st_Derivative_negativeSamplesProportion_segmented.clear();
 	timeSegments.clear();
 }
-
-void affect_sensing_module::calculate_GSR_Smooth_Derivative_Avg_RMS_NegSamplesProportion()
+	
+	void affect_sensing_module::calculate_GSR_Smooth_Derivative_Avg_RMS_NegSamplesProportion()
 {
 	vector< int > timeSegments = segmentTime( m_seconds_between_segments );
 
@@ -705,8 +778,8 @@ void affect_sensing_module::calculate_GSR_Smooth_Derivative_Avg_RMS_NegSamplesPr
 	results_GSR_segmented.clear();
 	timeSegments.clear();
 }
-
-void affect_sensing_module::calculate_GSR_SCR_Features_gsr31_AeriaUnderSCR_Avg()
+	
+	void affect_sensing_module::calculate_GSR_SCR_Features_gsr31_AeriaUnderSCR_Avg()
 {
 	vector< int > timeSegments = segmentTime( m_seconds_between_segments );
 
@@ -746,8 +819,13 @@ void affect_sensing_module::calculate_GSR_SCR_Features_gsr31_AeriaUnderSCR_Avg()
 	results_GSR_AeriaUnderSCR_Avg_segmented.clear();
 	timeSegments.clear();
 }
-
-void affect_sensing_module::calculate_EKG_LFdivHF_Avg()
+	
+	//////////////////////////////////////////////////////////////////////////
+	/*									IBI									*/
+	//////////////////////////////////////////////////////////////////////////
+	
+	
+	void affect_sensing_module::calculate_EKG_LFdivHF_Avg()
 {
 	vector< int > timeSegments = segmentTime( m_seconds_between_segments );
 
@@ -786,8 +864,8 @@ void affect_sensing_module::calculate_EKG_LFdivHF_Avg()
 	results_EKG_LFdivHF_segmented.clear();
 	timeSegments.clear();
 }
- 
-void affect_sensing_module::calculate_EKG_RMSSD()
+	 
+	void affect_sensing_module::calculate_EKG_RMSSD()
 {
 	vector< int > timeSegments = segmentTime( m_seconds_between_segments );
 
@@ -826,8 +904,8 @@ void affect_sensing_module::calculate_EKG_RMSSD()
 	results_EKG_RMSSD_segmented.clear();
 	timeSegments.clear();
 }
-
-void affect_sensing_module::calculate_EKG_SD1_SD2()
+	
+	void affect_sensing_module::calculate_EKG_SD1_SD2()
 {
 	vector< int > timeSegments = segmentTime( m_seconds_between_segments );
 
@@ -871,8 +949,8 @@ void affect_sensing_module::calculate_EKG_SD1_SD2()
 	results_EKG_SD1_SD2_segmented.clear();
 	timeSegments.clear();
 }
-
-void affect_sensing_module::calculate_EKG_Picard_F2()
+	
+	void affect_sensing_module::calculate_EKG_Picard_F2()
 {
 	vector< int > timeSegments = segmentTime( m_seconds_between_segments );
 
@@ -910,14 +988,250 @@ void affect_sensing_module::calculate_EKG_Picard_F2()
 	results_EKG_Picard_segmented.clear();
 	timeSegments.clear();
 }
+	
+	void affect_sensing_module::calculate_EKG_Mean()
+{
+	vector< int > timeSegments = segmentTime( m_seconds_between_segments );
 
+	vector<double> results_EKG_Avg_segmented ;
+	for ( unsigned int i=0 ; i<(timeSegments.size()) ; i += 2 )
+	{
 
+		results_EKG_Avg_segmented.push_back(calculate_EKG_Mean( timeSegments[i] , timeSegments[i+1]) );
+	}
+
+	if ( m_print_to_txt_enabled )
+	{
+		std::stringstream ss;
+		ss << "Segments_(" << m_seconds_between_segments << "_" << (timeSegments.size()/2) << ")_";
+		ss << "EKG_Mean.txt" ;
+		string toBeReplacedWith = ss.str();
+
+		string outputFilePath = replaceFilePath(m_file->fileName, toBeReplacedWith );
+
+		ofstream ofs;
+		ofs.open(outputFilePath);
+
+		for (unsigned int i=0 ; i<results_EKG_Avg_segmented.size() ; i++)
+		{
+			ofs << "Segment Number " << i+1 << " :" << endl ;
+
+			ofs << "GSR Mean : " << results_EKG_Avg_segmented[i] << endl << endl ;
+		}
+		ofs.close();
+	}
+
+	for (unsigned int i=0 ; i<results_EKG_Avg_segmented.size() ; i++)
+		m_stress_results->m_EKG_mean.push_back(results_EKG_Avg_segmented[i]);
+
+	results_EKG_Avg_segmented.clear();
+	timeSegments.clear();
+}
+	
+	void affect_sensing_module::calculate_EKG_SD()
+{	
+	vector< int > timeSegments = segmentTime( m_seconds_between_segments );
+
+	vector<double> results_EKG_SD_segmented ;
+	for ( unsigned int i=0 ; i<(timeSegments.size()) ; i += 2 )
+	{
+
+		results_EKG_SD_segmented.push_back(calculate_EKG_SD( timeSegments[i] , timeSegments[i+1]) );
+	}
+
+	if ( m_print_to_txt_enabled )
+	{
+		std::stringstream ss;
+		ss << "Segments_(" << m_seconds_between_segments << "_" << (timeSegments.size()/2) << ")_";
+		ss << "EKG_SD.txt" ;
+		string toBeReplacedWith = ss.str();
+
+		string outputFilePath = replaceFilePath(m_file->fileName, toBeReplacedWith );
+
+		ofstream ofs;
+		ofs.open(outputFilePath);
+
+		for (unsigned int i=0 ; i<results_EKG_SD_segmented.size() ; i++)
+		{
+			ofs << "Segment Number " << i+1 << " :" << endl ;
+
+			ofs << "GSR SD : " << results_EKG_SD_segmented[i] << endl << endl ;
+		}
+		ofs.close();
+	}
+
+	for (unsigned int i=0 ; i<results_EKG_SD_segmented.size() ; i++)
+		m_stress_results->m_EKG_SD.push_back(results_EKG_SD_segmented[i]);
+
+	results_EKG_SD_segmented.clear();
+	timeSegments.clear();
+
+}
+
+	void affect_sensing_module::calculate_EKG_Picard_1()
+	{
+		vector< int > timeSegments = segmentTime( m_seconds_between_segments );
+
+		vector<double> results_EKG_Picard_1_segmented ;
+		for ( unsigned int i=0 ; i<(timeSegments.size()) ; i += 2 )
+		{
+
+			results_EKG_Picard_1_segmented.push_back(calculate_EKG_Picard_1( timeSegments[i] , timeSegments[i+1]) );
+		}
+
+		if ( m_print_to_txt_enabled )
+		{
+			std::stringstream ss;
+			ss << "Segments_(" << m_seconds_between_segments << "_" << (timeSegments.size()/2) << ")_";
+			ss << "EKG_Picard_1.txt" ;
+			string toBeReplacedWith = ss.str();
+
+			string outputFilePath = replaceFilePath(m_file->fileName, toBeReplacedWith );
+
+			ofstream ofs;
+			ofs.open(outputFilePath);
+
+			for (unsigned int i=0 ; i<results_EKG_Picard_1_segmented.size() ; i++)
+			{
+				ofs << "Segment Number " << i+1 << " :" << endl ;
+
+				ofs << "GSR Picard_1 (delta): " << results_EKG_Picard_1_segmented[i] << endl << endl ;
+			}
+			ofs.close();
+		}
+
+		for (unsigned int i=0 ; i<results_EKG_Picard_1_segmented.size() ; i++)
+			m_stress_results->m_EKG_Picard_1.push_back(results_EKG_Picard_1_segmented[i]);
+
+		results_EKG_Picard_1_segmented.clear();
+		timeSegments.clear();
+	}
+
+	void affect_sensing_module::calculate_EKG_Picard_2()
+	{
+		vector< int > timeSegments = segmentTime( m_seconds_between_segments );
+
+		vector<double> results_EKG_Picard_2_segmented ;
+		for ( unsigned int i=0 ; i<(timeSegments.size()) ; i += 2 )
+		{
+
+			results_EKG_Picard_2_segmented.push_back(calculate_EKG_Picard_2( timeSegments[i] , timeSegments[i+1]) );
+		}
+
+		if ( m_print_to_txt_enabled )
+		{
+			std::stringstream ss;
+			ss << "Segments_(" << m_seconds_between_segments << "_" << (timeSegments.size()/2) << ")_";
+			ss << "EKG_Picard_2.txt" ;
+			string toBeReplacedWith = ss.str();
+
+			string outputFilePath = replaceFilePath(m_file->fileName, toBeReplacedWith );
+
+			ofstream ofs;
+			ofs.open(outputFilePath);
+
+			for (unsigned int i=0 ; i<results_EKG_Picard_2_segmented.size() ; i++)
+			{
+				ofs << "Segment Number " << i+1 << " :" << endl ;
+
+				ofs << "GSR Picard_2 (deltaNorm): " << results_EKG_Picard_2_segmented[i] << endl << endl ;
+			}
+			ofs.close();
+		}
+
+		for (unsigned int i=0 ; i<results_EKG_Picard_2_segmented.size() ; i++)
+			m_stress_results->m_EKG_Picard_2.push_back(results_EKG_Picard_2_segmented[i]);
+
+		results_EKG_Picard_2_segmented.clear();
+		timeSegments.clear();
+	}
+
+	void affect_sensing_module::calculate_EKG_max()
+	{
+		vector< int > timeSegments = segmentTime( m_seconds_between_segments );
+
+		vector<double> results_EKG_Max_segmented ;
+		for ( unsigned int i=0 ; i<(timeSegments.size()) ; i += 2 )
+		{
+
+			results_EKG_Max_segmented.push_back(calculate_EKG_max( timeSegments[i] , timeSegments[i+1]) );
+		}
+
+		if ( m_print_to_txt_enabled )
+		{
+			std::stringstream ss;
+			ss << "Segments_(" << m_seconds_between_segments << "_" << (timeSegments.size()/2) << ")_";
+			ss << "EKG_Max.txt" ;
+			string toBeReplacedWith = ss.str();
+
+			string outputFilePath = replaceFilePath(m_file->fileName, toBeReplacedWith );
+
+			ofstream ofs;
+			ofs.open(outputFilePath);
+
+			for (unsigned int i=0 ; i<results_EKG_Max_segmented.size() ; i++)
+			{
+				ofs << "Segment Number " << i+1 << " :" << endl ;
+
+				ofs << "GSR Max : " << results_EKG_Max_segmented[i] << endl << endl ;
+			}
+			ofs.close();
+		}
+
+		for (unsigned int i=0 ; i<results_EKG_Max_segmented.size() ; i++)
+			m_stress_results->m_EKG_max.push_back(results_EKG_Max_segmented[i]);
+
+		results_EKG_Max_segmented.clear();
+		timeSegments.clear();
+	}
+
+	void affect_sensing_module::calculate_EKG_kurtosis()
+	{
+		vector< int > timeSegments = segmentTime( m_seconds_between_segments );
+
+		vector<double> results_EKG_Kurtosis_segmented ;
+		for ( unsigned int i=0 ; i<(timeSegments.size()) ; i += 2 )
+		{
+
+			results_EKG_Kurtosis_segmented.push_back(calculate_EKG_kurtosis( timeSegments[i] , timeSegments[i+1]) );
+		}
+
+		if ( m_print_to_txt_enabled )
+		{
+			std::stringstream ss;
+			ss << "Segments_(" << m_seconds_between_segments << "_" << (timeSegments.size()/2) << ")_";
+			ss << "EKG_Kurtosis.txt" ;
+			string toBeReplacedWith = ss.str();
+
+			string outputFilePath = replaceFilePath(m_file->fileName, toBeReplacedWith );
+
+			ofstream ofs;
+			ofs.open(outputFilePath);
+
+			for (unsigned int i=0 ; i<results_EKG_Kurtosis_segmented.size() ; i++)
+			{
+				ofs << "Segment Number " << i+1 << " :" << endl ;
+
+				ofs << "GSR Kurtosis : " << results_EKG_Kurtosis_segmented[i] << endl << endl ;
+			}
+			ofs.close();
+		}
+
+		for (unsigned int i=0 ; i<results_EKG_Kurtosis_segmented.size() ; i++)
+			m_stress_results->m_EKG_Kurtosis.push_back(results_EKG_Kurtosis_segmented[i]);
+
+		results_EKG_Kurtosis_segmented.clear();
+		timeSegments.clear();
+	}
+
+//////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////
 /*							private functions							*/
 //////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////
 
 
-void affect_sensing_module::load_file( string fileName )
+	void affect_sensing_module::load_file( std::string fileName )
 {
 	std::ifstream ifs;
 	ifs.open(fileName.c_str());
@@ -975,8 +1289,8 @@ void affect_sensing_module::load_file( string fileName )
 	ifs.close();
 
 }
-
-void affect_sensing_module::load_file_2( string fileName )
+	
+	void affect_sensing_module::load_file_2( std::string fileName )
 {
 	m_file->valueNames.push_back("TimeStamp");
 	m_file->valueNames.push_back("Skin_Cond");
@@ -984,6 +1298,18 @@ void affect_sensing_module::load_file_2( string fileName )
 	m_file->valueNames.push_back("EKG_HR_FROM_IBI");
 	m_file->valueNames.push_back("EKG_LF");
 	m_file->valueNames.push_back("EKG_HF");
+
+	// subName , trialNum 
+
+	vector<string> tok  = tokenize_path(fileName, '\\');
+	string fullName = tok[tok.size()-1];
+	tok.clear();
+	fullName = loose_Extension(fullName);
+	tok = tokenize_path( fullName, '_');
+	m_file->subName = tok[1] ;
+	//m_file->trialNum = tok[tok.size()-1] ;
+	tok.clear();
+
 
 	std::ifstream ifs;
 	ifs.open(fileName.c_str());
@@ -1015,8 +1341,161 @@ void affect_sensing_module::load_file_2( string fileName )
 
 	ifs.close();
 }
+	
+	void affect_sensing_module::load_file_ITI_2010( std::string fileName )
+{
+	m_file->valueNames.push_back("TimeStamp");
+	m_file->valueNames.push_back("Skin_Cond");
+	m_file->valueNames.push_back("EKG_IBI");
+	m_file->valueNames.push_back("EKG_HR_FROM_IBI");
+	m_file->valueNames.push_back("EKG_LF");
+	m_file->valueNames.push_back("EKG_HF");
 
-vector<int> affect_sensing_module::segmentTime( int seconds )
+	// subName , trialNum 
+
+	vector<string> tok  = tokenize_path(fileName, '\\');
+	string fullName = tok[tok.size()-1];
+	tok.clear();
+	fullName = loose_Extension(fullName);
+	tok = tokenize_path( fullName, '_');
+	m_file->subName = tok[1] ;
+	tok.clear();
+
+
+	std::ifstream ifs;
+	ifs.open(fileName.c_str());
+	if ( ifs.is_open() )
+	{
+		string line;
+		int counter = 0;
+		while ( getline(ifs, line ) )
+		{
+			if ( counter > 7 )
+			{
+				vector<double> vals = tokenize_string(line);
+
+				m_file->time.push_back( vals[0] );
+
+				vector<double> temp;
+				temp.push_back(vals[4]);
+				temp.push_back(vals[5]);
+				temp.push_back(vals[6]);
+				temp.push_back(vals[7]);
+				temp.push_back(vals[8]);
+
+				m_file->data.push_back(temp);
+
+			}
+			counter ++ ;
+		}
+	}
+
+	ifs.close();
+}
+
+	void affect_sensing_module::load_file_from_sensor( std::string fileName )
+	{
+		m_file->valueNames.push_back("TimeStamp");
+		m_file->valueNames.push_back("Skin_Cond");
+		m_file->valueNames.push_back("EKG_IBI");
+		//m_file->valueNames.push_back("EKG_HR_FROM_IBI");
+		m_file->valueNames.push_back("EKG_LF");
+		m_file->valueNames.push_back("EKG_HF");
+
+		// subName , trialNum 
+
+		vector<string> tok  = tokenize_path(fileName, '\\');
+		string fullName = tok[tok.size()-1];
+		tok.clear();
+		fullName = loose_Extension(fullName);
+		tok = tokenize_path( fullName, '_');
+		m_file->subName = tok[1] ;
+		tok.clear();
+
+
+		std::ifstream ifs;
+		ifs.open(fileName.c_str());
+		if ( ifs.is_open() )
+		{
+			string line;
+			int counter = 0;
+			while ( getline(ifs, line ) )
+			{
+				if ( counter > 7 )
+				{
+					vector<double> vals = tokenize_string(line);
+
+					m_file->time.push_back( vals[0] );
+
+					vector<double> temp;
+					//temp.push_back(vals[4]);
+					//temp.push_back(vals[5]);
+					//temp.push_back(vals[6]);
+					//temp.push_back(vals[7]);
+					//temp.push_back(vals[8]);
+
+					temp.push_back(vals[1]);
+					temp.push_back(vals[2]);
+					temp.push_back(vals[3]);
+					temp.push_back(vals[4]);
+
+					m_file->data.push_back(temp);
+
+				}
+				counter ++ ;
+			}
+		}
+
+		ifs.close();
+	}
+	
+	void affect_sensing_module::load_file_from_sensor_2( std::string fileName )
+	{
+		m_file->valueNames.push_back("TimeStamp");
+		m_file->valueNames.push_back("Skin_Cond");
+		m_file->valueNames.push_back("EKG_IBI");
+
+		// subName , trialNum 
+
+		vector<string> tok  = tokenize_path(fileName, '\\');
+		string fullName = tok[tok.size()-1];
+		tok.clear();
+		fullName = loose_Extension(fullName);
+		tok = tokenize_path( fullName, '_');
+		m_file->subName = tok[1] ;
+		tok.clear();
+
+
+		std::ifstream ifs;
+		ifs.open(fileName.c_str());
+		if ( ifs.is_open() )
+		{
+			string line;
+			int counter = 0;
+			while ( getline(ifs, line ) )
+			{
+				if ( counter > 7 )
+				{
+					vector<double> vals = tokenize_string(line);
+
+					m_file->time.push_back( vals[0] );
+
+					vector<double> temp;
+
+					temp.push_back(vals[1]);
+					temp.push_back(vals[2]);
+
+					m_file->data.push_back(temp);
+
+				}
+				counter ++ ;
+			}
+		}
+
+		ifs.close();
+	}
+
+	vector<int> affect_sensing_module::segmentTime( int seconds )
 {
 	vector<int> out;
 	
@@ -1043,20 +1522,20 @@ vector<int> affect_sensing_module::segmentTime( int seconds )
 
 	return out;
 }
-
-vector<string> affect_sensing_module::tokenize_path(string path)
+	
+	vector<string> affect_sensing_module::tokenize_path( std::string path, const char delimiter)
 {
 	vector<string> toks;
 	string temp;
 	stringstream ss(path);
-	while ( getline(ss,temp,'\\'))
+	while ( getline(ss,temp, delimiter)) //  '\\'
 	{
 		toks.push_back(temp);
 	}
 	return toks;
 }
-
-vector<double> affect_sensing_module::tokenize_string(string str)
+	
+	vector<double> affect_sensing_module::tokenize_string( std::string str)
 {
 	vector<double> tokens;
 	string temp;
@@ -1067,29 +1546,76 @@ vector<double> affect_sensing_module::tokenize_string(string str)
 	}
 	return tokens;
 }
-
-string affect_sensing_module::lose_Extension(string str)
+	
+	string affect_sensing_module::loose_Extension( std::string str)
 {
 	std::size_t found = str.find_last_of('.');
 	return str.substr(0, found) ;
 }
-
-string affect_sensing_module::replaceFilePath( string inPath , string toBeReplacesWith )
+	
+	string affect_sensing_module::replaceFilePath( std::string inPath , std::string toBeReplacesWith )
 {
 	string out = "";
-	vector<string> tok = tokenize_path(inPath);
+	vector<string> tok = tokenize_path(inPath, '\\');
 	for ( unsigned int i=0; i<tok.size()-1 ; i++)
 	{
 		out += tok[i];
 		out += "\\";
 	}
-	out += lose_Extension(tok[tok.size()-1]);
+	out += loose_Extension(tok[tok.size()-1]);
 	out += "_";
 	out += toBeReplacesWith;
 	return out;
 }
+	
+	vector<string> affect_sensing_module::getSubNameAndTrialNum( std::string inPath)
+{
+	vector<string> retval , tok  = tokenize_path(inPath, '\\');
+	string fullName = tok[tok.size()-1];
+	tok.clear();
 
-double affect_sensing_module::calculate_GSR_mean( int start, int stop )
+	fullName = loose_Extension(fullName);
+
+	tok = tokenize_path( fullName, '_');
+	retval.push_back(tok[1]);				// subName
+	retval.push_back(tok[tok.size()-1]);	// trialNum
+	tok.clear();
+
+	return retval;
+}
+	
+	void affect_sensing_module::Create_Directory_all( std::string in_file_name )
+{
+	std::string filename = in_file_name ;
+	std::string temp_s ;
+
+	std::vector<std::string> tokens;
+	std::stringstream ss(filename);
+	while (getline(ss,temp_s,'\\'))
+	{
+		tokens.push_back(temp_s);
+	}
+
+	std::string file_temp = "" ;
+	for ( size_t i=0 ; i<tokens.size() ; i++ )
+	{
+		file_temp = file_temp + tokens[i] + "\\" ;
+		std::wstring stemp = std::wstring(file_temp.begin(), file_temp.end());
+		LPCWSTR sw = stemp.c_str();
+		if ( GetFileAttributes(sw) == INVALID_FILE_ATTRIBUTES )
+		{
+			CreateDirectory(sw,NULL);
+		}
+	}
+
+	tokens.clear();
+}
+	
+	//////////////////////////////////////////////////////////////////////////
+	/*									GSR									*/
+	//////////////////////////////////////////////////////////////////////////
+	
+	double affect_sensing_module::calculate_GSR_mean( int start, int stop )
 {
 	double sum = 0. ;
 	int counter = 0 ;
@@ -1101,8 +1627,8 @@ double affect_sensing_module::calculate_GSR_mean( int start, int stop )
 	
 	return (sum /= (double)counter) ;
 }
-
-double affect_sensing_module::calculate_GSR_Standard_Deviation( int start, int stop )
+	
+	double affect_sensing_module::calculate_GSR_Standard_Deviation( int start, int stop )
 {
 	double avg = 0. ;
 	int counter = 0 ;
@@ -1123,20 +1649,42 @@ double affect_sensing_module::calculate_GSR_Standard_Deviation( int start, int s
 	return sqrt( sum/counter );
 
 }
-
-double affect_sensing_module::calculate_GSR_RootMeanSquare( int start, int stop )
+	
+	double affect_sensing_module::calculate_GSR_1stDerivative_RootMeanSquare( int start, int stop )
 {
 	double sum = 0. ;
 	int counter = 0 ;
-	for ( unsigned int i=start ; i<stop ; i++ )
-	{
-		sum += (m_file->data[i][skinCond_ColNr])*(m_file->data[i][skinCond_ColNr]);
-		counter ++;
-	}
-	 return sqrt( sum / counter );
-}
 
-vector<double> affect_sensing_module::convolute( vector<vector<double>> signal, int sigColNum , vector<double> windowSignal )
+	for ( unsigned int i=start + 1 ; i<stop ; i++ )
+	{
+		if ( m_file->data[i][skinCond_ColNr] != m_file->data[i-1][skinCond_ColNr] )
+		{
+			sum += pow( (m_file->data[i][skinCond_ColNr] - m_file->data[i-1][skinCond_ColNr]) / (m_file->time[i] - m_file->time[i-1]) , 2 );
+			counter ++;
+		}
+	}
+
+	 return sqrt( sum / (double)counter );
+}
+	
+	double affect_sensing_module::calculate_GSR_1stDerivative_Average( int start, int stop )
+{
+	double s1 = 0.;
+	int counter = 0;
+
+	for ( unsigned int i= start ; i<stop-1 ; i++ )
+	{
+		if ( m_file->data[i+1][skinCond_ColNr] - m_file->data[i][skinCond_ColNr] != 0. )
+		{
+			s1 += ( m_file->data[i+1][skinCond_ColNr] - m_file->data[i][skinCond_ColNr] ) / (m_file->time[i+1] - m_file->time[i]) ;
+			counter ++;
+		}
+	}
+
+	return s1 / (double)counter;
+}
+	
+	vector<double> affect_sensing_module::convolute( vector<vector<double>> signal, int sigColNum , vector<double> windowSignal )
 {
 	vector<double> res;
 	res.resize(signal.size());
@@ -1170,8 +1718,8 @@ vector<double> affect_sensing_module::convolute( vector<vector<double>> signal, 
 
 	return res;
 }
-
-vector<double> affect_sensing_module::convolute_2( vector<vector<double>> signal, int sigColNum , vector<double> windowSignal )
+	
+	vector<double> affect_sensing_module::convolute_2( vector<vector<double>> signal, int sigColNum , vector<double> windowSignal )
 {
 	vector<double> res;
 	res.resize( signal.size() );
@@ -1211,8 +1759,8 @@ vector<double> affect_sensing_module::convolute_2( vector<vector<double>> signal
 
 	return res;
 }
-
-double affect_sensing_module::getMaxGSRValueForSpecificStartandStop( double start , double stop )
+	
+	double affect_sensing_module::getMaxGSRValueForSpecificStartandStop( double start , double stop )
 {
 	double maxV = -10000.0 ;
 	double minV =  10000.0 ;
@@ -1230,8 +1778,8 @@ double affect_sensing_module::getMaxGSRValueForSpecificStartandStop( double star
 
 	return (maxV - minV) ;
 }
-
-vector<double> affect_sensing_module::calculate_GSR_SCR_Features( int start, int stop )
+	
+	vector<double> affect_sensing_module::calculate_GSR_SCR_Features( int start, int stop )
 {
 	vector<double> bartlettW , returnVal ;
 	bartlettW.resize(255);
@@ -1323,7 +1871,9 @@ vector<double> affect_sensing_module::calculate_GSR_SCR_Features( int start, int
 	meanStartlesAmplitude /= maxGSRvaluesForSCRs.size();
 	meanStartlesDuration /= maxGSRvaluesForSCRs.size();
 
-	returnVal.push_back((double)maxGSRvaluesForSCRs.size());
+	double trialDuration = (double) (stop - start) / 255.0 ;
+	double NR = (int) (100.0 * ((double)maxGSRvaluesForSCRs.size() / trialDuration));
+	returnVal.push_back((double)NR);
 	returnVal.push_back(meanStartlesAmplitude);
 	returnVal.push_back(meanStartlesDuration);
 
@@ -1346,8 +1896,8 @@ vector<double> affect_sensing_module::calculate_GSR_SCR_Features( int start, int
 
 	return returnVal ;
 }
-
-double affect_sensing_module::calculate_GSR_Picard_1( int start, int stop )
+	
+	double affect_sensing_module::calculate_GSR_Picard_1( int start, int stop )
 {
 	double finalSum = 0. ;
 	int counter = 0;
@@ -1366,8 +1916,8 @@ double affect_sensing_module::calculate_GSR_Picard_1( int start, int stop )
 	return (double)( finalSum / ((double)counter - 1.0 ));
 
 }
-
-double affect_sensing_module::calculate_GSR_Picard_2( int start, int stop )
+	
+	double affect_sensing_module::calculate_GSR_Picard_2( int start, int stop )
 {
 	double gsrMean = 0.;
 	int counter = 0;
@@ -1407,8 +1957,8 @@ double affect_sensing_module::calculate_GSR_Picard_2( int start, int stop )
 
 	return ( finalSum / ((double)counter - 1.0) );
 }
-
-double affect_sensing_module::calculate_GSR_Picard_3( int start, int stop )
+	
+	double affect_sensing_module::calculate_GSR_Picard_3( int start, int stop )
 {
 	double gsrMean = 0.;
 	int counter = 0;
@@ -1457,8 +2007,8 @@ double affect_sensing_module::calculate_GSR_Picard_3( int start, int stop )
 
 	return retVal ;
 }
-
-double affect_sensing_module::calculate_GSR_Picard_F2( int start, int stop )
+	
+	double affect_sensing_module::calculate_GSR_Picard_F2( int start, int stop )
 {
 
 	vector< vector < double > > gsrSubSamled ;
@@ -1507,8 +2057,8 @@ double affect_sensing_module::calculate_GSR_Picard_F2( int start, int stop )
 
 	return returnVal;
 }
-
-vector<double> affect_sensing_module::calculate_GSR_SCR_Percentile_Features( int start, int stop )
+	
+	vector<double> affect_sensing_module::calculate_GSR_SCR_Percentile_Features( int start, int stop )
 {
 	vector<double> bartlettW , returnVal ;
 	
@@ -1687,8 +2237,8 @@ vector<double> affect_sensing_module::calculate_GSR_SCR_Percentile_Features( int
 
 	return returnVal ;
 }
-
-vector<double> affect_sensing_module::calculate_GSR_MIN_MAX_Features( int start, int stop )
+	
+	vector<double> affect_sensing_module::calculate_GSR_MIN_MAX_Features( int start, int stop )
 {
 	vector<double> retVal;
 
@@ -1709,8 +2259,8 @@ vector<double> affect_sensing_module::calculate_GSR_MIN_MAX_Features( int start,
 	return retVal;
 
 }
-
-vector<double> affect_sensing_module::calculate_GSR_Kurtosis_Skewness( int start , int stop )
+	
+	vector<double> affect_sensing_module::calculate_GSR_Kurtosis_Skewness( int start , int stop )
 {
 	vector<double> retVal;
 
@@ -1738,8 +2288,8 @@ vector<double> affect_sensing_module::calculate_GSR_Kurtosis_Skewness( int start
 
 	return retVal ;
 }
-
-double affect_sensing_module::calculate_GSR_1st_Derivative_negativeSamplesProportion( int start , int stop )
+	
+	double affect_sensing_module::calculate_GSR_1st_Derivative_negativeSamplesProportion( int start , int stop )
 {
 	int counter = 0 ;
 	double negativeSamples = 0. ;
@@ -1757,8 +2307,8 @@ double affect_sensing_module::calculate_GSR_1st_Derivative_negativeSamplesPropor
 
 	return ( negativeSamples/(double)counter) ;
 }
-
-vector<double> affect_sensing_module::calculate_GSR_Smooth_Derivative_Avg_RMS_NegSamplesProportion( int start , int stop )
+	
+	vector<double> affect_sensing_module::calculate_GSR_Smooth_Derivative_Avg_RMS_NegSamplesProportion( int start , int stop )
 {
 	vector<double> bartlettW , returnVal ;
 
@@ -1820,8 +2370,8 @@ vector<double> affect_sensing_module::calculate_GSR_Smooth_Derivative_Avg_RMS_Ne
 		
 	return returnVal ;
 }
-
-double affect_sensing_module::calculate_GSR_SCR_Features_gsr31_AeriaUnderSCR_Avg( int start , int stop )
+	
+	double affect_sensing_module::calculate_GSR_SCR_Features_gsr31_AeriaUnderSCR_Avg( int start , int stop )
 {
 	vector<double> bartlettW ;
 	bartlettW.resize(255);
@@ -1931,8 +2481,12 @@ double affect_sensing_module::calculate_GSR_SCR_Features_gsr31_AeriaUnderSCR_Avg
 	return areaUnderSCRs ;
 
 }
-
-double affect_sensing_module::calculate_EKG_LFdivHF_Avg(  int start , int stop )
+	
+	//////////////////////////////////////////////////////////////////////////
+	/*									IBI									*/
+	//////////////////////////////////////////////////////////////////////////
+	
+	double affect_sensing_module::calculate_EKG_LFdivHF_Avg(  int start , int stop )
 {
 	int counter = 0 ;
 	double sum = 0. ;
@@ -1950,8 +2504,8 @@ double affect_sensing_module::calculate_EKG_LFdivHF_Avg(  int start , int stop )
 
 	return (double)( sum / (double)counter ) ;
 }
-
-double affect_sensing_module::calculate_EKG_RMSSD( int start , int stop )
+	
+	double affect_sensing_module::calculate_EKG_RMSSD( int start , int stop )
 {
 	double sxi2 = 0.;
 	int counter = 0;
@@ -1969,8 +2523,8 @@ double affect_sensing_module::calculate_EKG_RMSSD( int start , int stop )
 	double val = sqrt( (1. / (double)counter) * sxi2 );
 	return val ;
 }
-
-vector<double> affect_sensing_module::calculate_EKG_SD1_SD2( int start , int stop )
+	
+	vector<double> affect_sensing_module::calculate_EKG_SD1_SD2( int start , int stop )
 {
 	vector<vector<double>> poinCarePlot , poinCarePlot_L ;
 	for ( unsigned int i=0 ; i<m_file->data.size() -1 ; i++ )
@@ -2033,8 +2587,8 @@ vector<double> affect_sensing_module::calculate_EKG_SD1_SD2( int start , int sto
 	return ret ;
 
 }
-
-double affect_sensing_module::calculate_EKG_Picard_F2( int start, int stop )
+	
+	double affect_sensing_module::calculate_EKG_Picard_F2( int start, int stop )
 {
 
 	vector< vector < double > > ekgSubSamled ;
@@ -2083,3 +2637,142 @@ double affect_sensing_module::calculate_EKG_Picard_F2( int start, int stop )
 
 	return returnVal;
 }
+	
+	double affect_sensing_module::calculate_EKG_Mean( int start, int stop )
+{
+	double sum = 0. ;
+	int counter = 0 ;
+	for ( unsigned int i=start ; i<stop ; i++ )
+	{
+		sum += m_file->data[i][ekgIBI_ColNr];
+		counter ++ ;
+	}
+	
+	sum /= (double)counter;
+
+	return ( sum /= 1000.0 ) ;
+}
+
+	double affect_sensing_module::calculate_EKG_SD( int start, int stop )
+	{
+		double avg = 0. ;
+		int counter = 0 ;
+		for ( unsigned int i=start ; i<stop ; i++ )
+		{
+			avg += m_file->data[i][ekgIBI_ColNr];
+			counter ++ ;
+		}
+
+		avg /= (double)counter ;
+		avg /= 1000.0 ;
+
+		double sum = 0. ;
+		for ( unsigned int i=start ; i<stop ; i++ )
+		{
+			sum += ((m_file->data[i][ekgIBI_ColNr]/1000.0) - avg)*((m_file->data[i][ekgIBI_ColNr]/1000.0) - avg);
+		}
+
+		return sqrt( sum/(double)counter );
+	}
+
+	double affect_sensing_module::calculate_EKG_Picard_1( int start, int stop )
+	{
+		double finalSum = 0. ;
+		int counter = 0;
+
+		for ( unsigned int i = start ; i<(stop-1) && i<(m_file->data.size()-1) ; i++ )
+		{
+			double sub = m_file->data[i+1][ekgIBI_ColNr] - m_file->data[i][ekgIBI_ColNr];
+
+			if( sub != 0. ) 
+			{
+				finalSum += std::abs( sub / 1000.0 );
+				counter++ ;
+			}
+		}
+
+		return (double)( finalSum / ((double)counter - 1.0 ));
+	}
+
+	double affect_sensing_module::calculate_EKG_Picard_2( int start, int stop )
+	{
+		double ibiMean = 0.;
+		int counter = 0;
+
+		for ( unsigned int i=start ; i<stop && i<m_file->data.size() ; i++)
+		{
+			ibiMean += m_file->data[i][ekgIBI_ColNr] ;
+			counter ++;
+		}
+
+		ibiMean /= ((double)counter) ;
+
+		double s1 = 0.;
+		counter = 0;
+
+		for ( unsigned int i = start ; i<stop && i<m_file->data.size() ; i++ )
+		{
+			s1 += ( m_file->data[i][ekgIBI_ColNr] - ibiMean )*( m_file->data[i][ekgIBI_ColNr] - ibiMean );
+			counter ++;
+		}
+
+		double ibiSD = std::sqrt( ((double)(1. / (double)counter )) * s1 );
+
+		double finalSum = 0.;
+		counter = 0;
+		for ( unsigned int i = start ; i<(stop-1) && i<(m_file->data.size()-1) ; i++ )
+		{
+			double dn1 = ( m_file->data[i][ekgIBI_ColNr] - ibiMean ) / ibiSD ;
+			double dn2 = ( m_file->data[i+1][ekgIBI_ColNr] - ibiMean ) / ibiSD ;
+
+			if ( dn2 - dn1 != 0.)
+			{
+				finalSum += std::abs( dn2-dn1 );
+				counter ++;
+			}
+		}
+
+		return ( finalSum / ((double)counter - 1.0) );
+	}
+
+	double affect_sensing_module::calculate_EKG_max( int start, int stop )
+	{
+		double ibiMax = 0. ;
+
+		for ( unsigned int i=start ; i<stop ; i++ )
+		{
+			if ( m_file->data[i][ekgIBI_ColNr] > ibiMax )
+			{
+				ibiMax = m_file->data[i][ekgIBI_ColNr] ;
+			}
+		}
+		return ibiMax / 1000. ;
+	}
+
+	double affect_sensing_module::calculate_EKG_kurtosis( int start, int stop )
+	{
+		double ibiMean = 0. ;
+		int counter = 0;
+
+		for ( unsigned int i=start ; i<stop ; i++ )
+		{
+			ibiMean += m_file->data[i][ekgIBI_ColNr];
+			counter ++;
+		}
+
+		ibiMean /= (double)counter;
+		ibiMean /= 1000.0;
+
+		double sum1 = 0. , sum2 = 0. , sum3 = 0. ;
+
+		for ( unsigned int i=start ; i<stop ; i++ )
+		{
+			sum1 += pow( ( m_file->data[i][ekgIBI_ColNr] / 1000.0 ) - ibiMean , 4 );
+			sum2 += pow( ( m_file->data[i][ekgIBI_ColNr] / 1000.0 ) - ibiMean , 2 );
+			sum3 += pow( ( m_file->data[i][ekgIBI_ColNr] / 1000.0 ) - ibiMean , 3 );
+		}
+
+		double kurtosis = ( (sum1 / (double)counter) / pow( (sum2 / (double)counter ), 2) ) - 3.0 ;
+
+		return kurtosis;
+	}
