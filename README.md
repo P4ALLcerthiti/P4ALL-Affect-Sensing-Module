@@ -48,4 +48,6 @@ Then follow the next lines inside your code to produce the features:
 
 2) Open [MFC App](https://github.com/P4ALLcerthiti/P4ALL-Affect-Sensing-Module/tree/master/Affect_Sensing_Module_TEST_MFC) and customize the code according to your needs.
 
+Funding Acknowledgement
 
+The research leading to these results has received funding from the European Union's Seventh Framework Programme (FP7) under grant agreement No.610510
