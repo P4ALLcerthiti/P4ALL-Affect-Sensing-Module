@@ -38,8 +38,8 @@ public:
 	CListBox m_StatusBar;
 	CEdit m_Seconds;
 
-	affect_sensing_module * afsm_rest;
-	affect_sensing_module * afsm_normal;
+	affect_sensing_module * afsm_REST;
+	affect_sensing_module * afsm_NORMAL;
 
 private:
 

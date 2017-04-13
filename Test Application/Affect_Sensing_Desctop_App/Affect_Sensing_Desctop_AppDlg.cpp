@@ -225,7 +225,7 @@ void CAffect_Sensing_Desctop_AppDlg::OnBnClickedButtonBrowseRestCase()
 		m_filename_REST.Append(dlgFile.GetFileName());
 	}
 
-	afsm_rest = new affect_sensing_module();
+	afsm_REST = new affect_sensing_module();
 
 	m_filePath_REST.SetWindowText(m_filename_REST);
 
@@ -246,7 +246,7 @@ void CAffect_Sensing_Desctop_AppDlg::OnBnClickedButtonBrowseNormalCase()
 		m_filename_NORMAL.Append(dlgFile.GetFileName());
 	}
 
-	afsm_normal = new affect_sensing_module();
+	afsm_NORMAL = new affect_sensing_module();
 
 	m_filePath_NORMAL.SetWindowText(m_filename_NORMAL);
 
@@ -265,99 +265,165 @@ void CAffect_Sensing_Desctop_AppDlg::OnBnClickedButtonDetectStress()
 
 	// REST FEATURES
 	std::string REST_filename = std::string(CT2CA(m_filename_REST));
-	afsm_rest->set_fileName(REST_filename);
-	afsm_rest->set_seconds_between_Intervals(0);
+	afsm_REST->set_fileName(REST_filename);
+	afsm_REST->set_seconds_between_Intervals(0);
 
-	afsm_rest->calculate_GSR_Standard_Deviation();								// m_GSR_sd
-	afsm_rest->calculate_GSR_1stDerivative_RootMeanSquare();					// m_GSR_1stDer_RMS
-	afsm_rest->calculate_GSR_1stDerivative_Average();							// m_GSR_1stDer_AVG
-	afsm_rest->calculate_GSR_SCR_Features();									// m_GSR_Amplitude, m_GSR_Rate
-	afsm_rest->calculate_GSR_SCR_Percentile_Features();							// m_GSR_Amplitude_Percentiles
-	afsm_rest->calculate_GSR_MIN_MAX_Features();								// m_GSR_min, m_GSR_max
-	afsm_rest->calculate_GSR_Smooth_Derivative_Avg_RMS_NegSamplesProportion();	// m_GSR_Smooth_Dervative_RMS
+	afsm_REST->set_time_segments();
 
-	afsm_rest->calculate_EKG_Mean();			// m_EKG_mean
-	afsm_rest->calculate_EKG_SD1_SD2();			// m_EKG_SD2
-	afsm_rest->calculate_EKG_Picard_1();		// m_EKG_Picard_1
-	afsm_rest->calculate_EKG_Picard_2();		// m_EKG_Picard_2
-	afsm_rest->calculate_EKG_Picard_F2();		// m_EKG_Picard_F2
-	afsm_rest->calculate_EKG_SD();				// m_EKG_SD
-	afsm_rest->calculate_EKG_max();				// m_EKG_max
-	afsm_rest->calculate_EKG_kurtosis();		// m_EKG_Kurtosis
+	afsm_REST->calculate_GSR_Standard_Deviation();								// m_GSR_sd
+	afsm_REST->calculate_GSR_1stDerivative_RootMeanSquare();					// m_GSR_1stDer_RMS
+	afsm_REST->calculate_GSR_1stDerivative_Average();							// m_GSR_1stDer_AVG
+	afsm_REST->calculate_GSR_SCR_Features();									// m_GSR_Amplitude, m_GSR_Rate
+	afsm_REST->calculate_GSR_SCR_Percentile_Features();							// m_GSR_Amplitude_Percentiles
+	afsm_REST->calculate_GSR_MIN_MAX_Features();								// m_GSR_min, m_GSR_max
+	afsm_REST->calculate_GSR_Smooth_Derivative_Avg_RMS_NegSamplesProportion();	// m_GSR_Smooth_Dervative_RMS
+
+	afsm_REST->calculate_EKG_Mean();			// m_EKG_mean
+	afsm_REST->calculate_EKG_SD1_SD2();			// m_EKG_SD2
+	afsm_REST->calculate_EKG_Picard_1();		// m_EKG_Picard_1
+	afsm_REST->calculate_EKG_Picard_2();		// m_EKG_Picard_2
+	afsm_REST->calculate_EKG_Picard_F2();		// m_EKG_Picard_F2
+	afsm_REST->calculate_EKG_SD();				// m_EKG_SD
+	afsm_REST->calculate_EKG_max();				// m_EKG_max
+	afsm_REST->calculate_EKG_kurtosis();		// m_EKG_Kurtosis
 
 	// NORMAL FEATURES
 
 	std::string NORMAL_filename = std::string(CT2CA(m_filename_NORMAL));
-	afsm_normal->set_fileName(NORMAL_filename);
-	afsm_normal->set_seconds_between_Intervals(_wtoi(sec));
+	afsm_NORMAL->set_fileName(NORMAL_filename);
+	afsm_NORMAL->set_seconds_between_Intervals(_wtoi(sec));
 
-	afsm_normal->calculate_GSR_Standard_Deviation();							// m_GSR_sd
-	afsm_normal->calculate_GSR_1stDerivative_RootMeanSquare();					// m_GSR_1stDer_RMS
-	afsm_normal->calculate_GSR_1stDerivative_Average();							// m_GSR_1stDer_AVG
-	afsm_normal->calculate_GSR_SCR_Features();									// m_GSR_Amplitude, m_GSR_Rate
-	afsm_normal->calculate_GSR_SCR_Percentile_Features();						// m_GSR_Amplitude_Percentiles
-	afsm_normal->calculate_GSR_MIN_MAX_Features();								// m_GSR_min, m_GSR_max
-	afsm_normal->calculate_GSR_Smooth_Derivative_Avg_RMS_NegSamplesProportion();// m_GSR_Smooth_Dervative_RMS
-	
-	afsm_normal->calculate_EKG_Mean();			// m_EKG_mean
-	afsm_normal->calculate_EKG_SD1_SD2();		// m_EKG_SD2
-	afsm_normal->calculate_EKG_Picard_1();		// m_EKG_Picard_1
-	afsm_normal->calculate_EKG_Picard_2();		// m_EKG_Picard_2
-	afsm_normal->calculate_EKG_Picard_F2();		// m_EKG_Picard_F2
-	afsm_normal->calculate_EKG_SD();			// m_EKG_SD
-	afsm_normal->calculate_EKG_max();			// m_EKG_max
-	afsm_normal->calculate_EKG_kurtosis();		// m_EKG_Kurtosis
+	afsm_NORMAL->set_time_segments();
+
+	afsm_NORMAL->calculate_GSR_Standard_Deviation ();								// m_GSR_sd
+	afsm_NORMAL->calculate_GSR_1stDerivative_RootMeanSquare ();						// m_GSR_1stDer_RMS
+	afsm_NORMAL->calculate_GSR_1stDerivative_Average ();							// m_GSR_1stDer_AVG
+	afsm_NORMAL->calculate_GSR_SCR_Features ();										// m_GSR_Amplitude, m_GSR_Rate
+	afsm_NORMAL->calculate_GSR_SCR_Percentile_Features ();							// m_GSR_Amplitude_Percentiles
+	afsm_NORMAL->calculate_GSR_MIN_MAX_Features ();									// m_GSR_min, m_GSR_max
+	afsm_NORMAL->calculate_GSR_Smooth_Derivative_Avg_RMS_NegSamplesProportion ();	// m_GSR_Smooth_Dervative_RMS
+
+	afsm_NORMAL->calculate_EKG_Mean ();			// m_EKG_mean
+	afsm_NORMAL->calculate_EKG_SD1_SD2 ();		// m_EKG_SD2
+	afsm_NORMAL->calculate_EKG_Picard_1 ();		// m_EKG_Picard_1
+	afsm_NORMAL->calculate_EKG_Picard_2 ();		// m_EKG_Picard_2
+	afsm_NORMAL->calculate_EKG_Picard_F2 ();	// m_EKG_Picard_F2
+	afsm_NORMAL->calculate_EKG_SD ();			// m_EKG_SD
+	afsm_NORMAL->calculate_EKG_max ();			// m_EKG_max
+	afsm_NORMAL->calculate_EKG_kurtosis ();		// m_EKG_Kurtosis
 
 	// Normalize NORMAL case to REST case
 
-	for ( unsigned int i=0 ; i<afsm_normal->m_stress_results->m_num_of_segments ; i++ )
+	vector<int> GSR_index = afsm_NORMAL->get_GSR_index();
+	vector<int> IBI_index = afsm_NORMAL->get_IBI_index();
+
+	for ( unsigned int i=0 ; i<afsm_NORMAL->m_stress_results->m_num_of_segments ; i++ )
 	{
-		afsm_normal->m_stress_results->m_GSR_sd[i]						/= afsm_rest->m_stress_results->m_GSR_sd[0];
-		afsm_normal->m_stress_results->m_GSR_1stDer_RMS[i]				/= afsm_rest->m_stress_results->m_GSR_1stDer_RMS[0];
-		afsm_normal->m_stress_results->m_GSR_1stDer_AVG[i]				/= afsm_rest->m_stress_results->m_GSR_1stDer_AVG[0];
-		afsm_normal->m_stress_results->m_GSR_Rate[i]					/= afsm_rest->m_stress_results->m_GSR_Rate[0];
-		afsm_normal->m_stress_results->m_GSR_Amplitude[i]				/= afsm_rest->m_stress_results->m_GSR_Amplitude[0];
-
-		for ( unsigned int j=0 ; j<5 ; j++ )
-			afsm_normal->m_stress_results->m_GSR_Amplitude_Percentiles[i][j] /= afsm_rest->m_stress_results->m_GSR_Amplitude_Percentiles[0][j];
-
-		afsm_normal->m_stress_results->m_GSR_min[i]						/= afsm_rest->m_stress_results->m_GSR_min[0];
-		afsm_normal->m_stress_results->m_GSR_max[i]						/= afsm_rest->m_stress_results->m_GSR_max[0];
-		afsm_normal->m_stress_results->m_GSR_Smooth_Dervative_RMS[i]	/= afsm_rest->m_stress_results->m_GSR_Smooth_Dervative_RMS[0];
-
-		afsm_normal->m_stress_results->m_EKG_mean[i]					/= afsm_rest->m_stress_results->m_EKG_mean[0];
-		afsm_normal->m_stress_results->m_EKG_SD[i]						/= afsm_rest->m_stress_results->m_EKG_SD[0];
-		afsm_normal->m_stress_results->m_EKG_SD2[i]						/= afsm_rest->m_stress_results->m_EKG_SD2[0];
-		afsm_normal->m_stress_results->m_EKG_Picard_1[i]				/= afsm_rest->m_stress_results->m_EKG_Picard_1[0];
-		afsm_normal->m_stress_results->m_EKG_Picard_2[i]				/= afsm_rest->m_stress_results->m_EKG_Picard_2[0];
-		afsm_normal->m_stress_results->m_EKG_Picard_F2[i]				/= afsm_rest->m_stress_results->m_EKG_Picard_F2[0];
-		afsm_normal->m_stress_results->m_EKG_max[i]						/= afsm_rest->m_stress_results->m_EKG_max[0];
-		afsm_normal->m_stress_results->m_EKG_Kurtosis[i]				/= afsm_rest->m_stress_results->m_EKG_Kurtosis[0];
-
-		// Estimate stress level by weights
+		//afsm_NORMAL->m_stress_results->m_GSR_sd[i]						/= afsm_REST->m_stress_results->m_GSR_sd[0];
+		//afsm_NORMAL->m_stress_results->m_GSR_1stDer_RMS[i]				/= afsm_REST->m_stress_results->m_GSR_1stDer_RMS[0];
+		//afsm_NORMAL->m_stress_results->m_GSR_1stDer_AVG[i]				/= afsm_REST->m_stress_results->m_GSR_1stDer_AVG[0];
+		//afsm_NORMAL->m_stress_results->m_GSR_Rate[i]					/= afsm_REST->m_stress_results->m_GSR_Rate[0];
+		//afsm_NORMAL->m_stress_results->m_GSR_Amplitude[i]				/= afsm_REST->m_stress_results->m_GSR_Amplitude[0];
+		//
+		//for ( unsigned int j=0 ; j<5 ; j++ )
+		//	afsm_NORMAL->m_stress_results->m_GSR_Amplitude_Percentiles[i][j] /= afsm_REST->m_stress_results->m_GSR_Amplitude_Percentiles[0][j];
+		//
+		//afsm_NORMAL->m_stress_results->m_GSR_min[i]						/= afsm_REST->m_stress_results->m_GSR_min[0];
+		//afsm_NORMAL->m_stress_results->m_GSR_max[i]						/= afsm_REST->m_stress_results->m_GSR_max[0];
+		//afsm_NORMAL->m_stress_results->m_GSR_Smooth_Dervative_RMS[i]	/= afsm_REST->m_stress_results->m_GSR_Smooth_Dervative_RMS[0];
+		//
+		//afsm_NORMAL->m_stress_results->m_EKG_mean[i]					/= afsm_REST->m_stress_results->m_EKG_mean[0];
+		//afsm_NORMAL->m_stress_results->m_EKG_SD[i]						/= afsm_REST->m_stress_results->m_EKG_SD[0];
+		//afsm_NORMAL->m_stress_results->m_EKG_SD2[i]						/= afsm_REST->m_stress_results->m_EKG_SD2[0];
+		//afsm_NORMAL->m_stress_results->m_EKG_Picard_1[i]				/= afsm_REST->m_stress_results->m_EKG_Picard_1[0];
+		//afsm_NORMAL->m_stress_results->m_EKG_Picard_2[i]				/= afsm_REST->m_stress_results->m_EKG_Picard_2[0];
+		//afsm_NORMAL->m_stress_results->m_EKG_Picard_F2[i]				/= afsm_REST->m_stress_results->m_EKG_Picard_F2[0];
+		//afsm_NORMAL->m_stress_results->m_EKG_max[i]						/= afsm_REST->m_stress_results->m_EKG_max[0];
+		//afsm_NORMAL->m_stress_results->m_EKG_Kurtosis[i]				/= afsm_REST->m_stress_results->m_EKG_Kurtosis[0];
+		//
+		//// Estimate stress level by weights
+		//
+		//Weights_struct *ww = new Weights_struct();
+		//double sum = 0.;
+		//
+		//sum += ( ww->weights[0 ] * afsm_NORMAL->m_stress_results->m_GSR_sd[i] );						/*01*/
+		//sum += ( ww->weights[1 ] * afsm_NORMAL->m_stress_results->m_GSR_1stDer_AVG[i] );				/*02*/
+		//sum += ( ww->weights[2 ] * afsm_NORMAL->m_stress_results->m_GSR_1stDer_RMS[i] );				/*03*/
+		//sum += ( ww->weights[3 ] * afsm_NORMAL->m_stress_results->m_GSR_Rate[i] );						/*04*/
+		//sum += ( ww->weights[4 ] * afsm_NORMAL->m_stress_results->m_GSR_Amplitude[i] );					/*05*/
+		//sum += ( ww->weights[5 ] * afsm_NORMAL->m_stress_results->m_GSR_min[i] );						/*06*/
+		//sum += ( ww->weights[6 ] * afsm_NORMAL->m_stress_results->m_GSR_max[i] );						/*07*/
+		//sum += ( ww->weights[7 ] * afsm_NORMAL->m_stress_results->m_GSR_Amplitude_Percentiles[i][2] );	/*08*/
+		//sum += ( ww->weights[8 ] * afsm_NORMAL->m_stress_results->m_GSR_Amplitude_Percentiles[i][3] );	/*09*/
+		//sum += ( ww->weights[9 ] * afsm_NORMAL->m_stress_results->m_GSR_Smooth_Dervative_RMS[i] );		/*10*/
+		//
+		//sum += ( ww->weights[10] * afsm_NORMAL->m_stress_results->m_EKG_mean[i] );						/*11*/
+		//sum += ( ww->weights[11] * afsm_NORMAL->m_stress_results->m_EKG_SD[i] );						/*12*/
+		//sum += ( ww->weights[12] * afsm_NORMAL->m_stress_results->m_EKG_Picard_1[i] );					/*13*/
+		//sum += ( ww->weights[13] * afsm_NORMAL->m_stress_results->m_EKG_Picard_2[i] );					/*14*/
+		//sum += ( ww->weights[14] * afsm_NORMAL->m_stress_results->m_EKG_Picard_F2[i] );					/*15*/
+		//sum += ( ww->weights[15] * afsm_NORMAL->m_stress_results->m_EKG_max[i] );						/*16*/
+		//sum += ( ww->weights[16] * afsm_NORMAL->m_stress_results->m_EKG_Kurtosis[i] );					/*17*/
+		//sum += ( ww->weights[17] * afsm_NORMAL->m_stress_results->m_EKG_SD2[i] );						/*18*/
 
 		Weights_struct *ww = new Weights_struct();
 		double sum = 0.;
 
-		sum += ( ww->weights[0 ] * afsm_normal->m_stress_results->m_GSR_sd[i] );						/*01*/
-		sum += ( ww->weights[1 ] * afsm_normal->m_stress_results->m_GSR_1stDer_AVG[i] );				/*02*/
-		sum += ( ww->weights[2 ] * afsm_normal->m_stress_results->m_GSR_1stDer_RMS[i] );				/*03*/
-		sum += ( ww->weights[3 ] * afsm_normal->m_stress_results->m_GSR_Rate[i] );						/*04*/
-		sum += ( ww->weights[4 ] * afsm_normal->m_stress_results->m_GSR_Amplitude[i] );					/*05*/
-		sum += ( ww->weights[5 ] * afsm_normal->m_stress_results->m_GSR_min[i] );						/*06*/
-		sum += ( ww->weights[6 ] * afsm_normal->m_stress_results->m_GSR_max[i] );						/*07*/
-		sum += ( ww->weights[7 ] * afsm_normal->m_stress_results->m_GSR_Amplitude_Percentiles[i][2] );	/*08*/
-		sum += ( ww->weights[8 ] * afsm_normal->m_stress_results->m_GSR_Amplitude_Percentiles[i][3] );	/*09*/
-		sum += ( ww->weights[9 ] * afsm_normal->m_stress_results->m_GSR_Smooth_Dervative_RMS[i] );		/*10*/
+		if ((GSR_index[i * 2]) && ((i * 2) < GSR_index.size()))
+		{
+			afsm_NORMAL->m_stress_results->m_GSR_sd[i] /= afsm_REST->m_stress_results->m_GSR_sd[0];
+			afsm_NORMAL->m_stress_results->m_GSR_1stDer_RMS[i] /= afsm_REST->m_stress_results->m_GSR_1stDer_RMS[0];
+			afsm_NORMAL->m_stress_results->m_GSR_1stDer_AVG[i] /= afsm_REST->m_stress_results->m_GSR_1stDer_AVG[0];
+			afsm_NORMAL->m_stress_results->m_GSR_Rate[i] /= afsm_REST->m_stress_results->m_GSR_Rate[0];
+			afsm_NORMAL->m_stress_results->m_GSR_Amplitude[i] /= afsm_REST->m_stress_results->m_GSR_Amplitude[0];
 
-		sum += ( ww->weights[10] * afsm_normal->m_stress_results->m_EKG_mean[i] );						/*11*/
-		sum += ( ww->weights[11] * afsm_normal->m_stress_results->m_EKG_SD[i] );						/*12*/
-		sum += ( ww->weights[12] * afsm_normal->m_stress_results->m_EKG_Picard_1[i] );					/*13*/
-		sum += ( ww->weights[13] * afsm_normal->m_stress_results->m_EKG_Picard_2[i] );					/*14*/
-		sum += ( ww->weights[14] * afsm_normal->m_stress_results->m_EKG_Picard_F2[i] );					/*15*/
-		sum += ( ww->weights[15] * afsm_normal->m_stress_results->m_EKG_max[i] );						/*16*/
-		sum += ( ww->weights[16] * afsm_normal->m_stress_results->m_EKG_Kurtosis[i] );					/*17*/
-		sum += ( ww->weights[17] * afsm_normal->m_stress_results->m_EKG_SD2[i] );						/*18*/
+			for (unsigned int j = 0; j < 5; j++)
+			{
+				afsm_NORMAL->m_stress_results->m_GSR_Amplitude_Percentiles[j][i] /= afsm_REST->m_stress_results->m_GSR_Amplitude_Percentiles[j][0];
+			}
+
+			afsm_NORMAL->m_stress_results->m_GSR_min[i] /= afsm_REST->m_stress_results->m_GSR_min[0];
+			afsm_NORMAL->m_stress_results->m_GSR_max[i] /= afsm_REST->m_stress_results->m_GSR_max[0];
+			afsm_NORMAL->m_stress_results->m_GSR_Smooth_Dervative_RMS[i] /= afsm_REST->m_stress_results->m_GSR_Smooth_Dervative_RMS[0];
+
+			// Estimate stress level by weights
+
+			sum += (ww->weights[0] * afsm_NORMAL->m_stress_results->m_GSR_sd[i]);						/*01*/
+			sum += (ww->weights[1] * afsm_NORMAL->m_stress_results->m_GSR_1stDer_AVG[i]);				/*02*/
+			sum += (ww->weights[2] * afsm_NORMAL->m_stress_results->m_GSR_1stDer_RMS[i]);				/*03*/
+			sum += (ww->weights[3] * afsm_NORMAL->m_stress_results->m_GSR_Rate[i]);						/*04*/
+			sum += (ww->weights[4] * afsm_NORMAL->m_stress_results->m_GSR_Amplitude[i]);				/*05*/
+			sum += (ww->weights[5] * afsm_NORMAL->m_stress_results->m_GSR_min[i]);						/*06*/
+			sum += (ww->weights[6] * afsm_NORMAL->m_stress_results->m_GSR_max[i]);						/*07*/
+			sum += (ww->weights[7] * afsm_NORMAL->m_stress_results->m_GSR_Amplitude_Percentiles[2][i]);	/*08*/
+			sum += (ww->weights[8] * afsm_NORMAL->m_stress_results->m_GSR_Amplitude_Percentiles[3][i]);	/*09*/
+			sum += (ww->weights[9] * afsm_NORMAL->m_stress_results->m_GSR_Smooth_Dervative_RMS[i]);		/*10*/
+
+		}
+
+		if ((IBI_index[i * 2]) && ((i * 2) < IBI_index.size()))
+		{
+			afsm_NORMAL->m_stress_results->m_EKG_mean[i] /= afsm_REST->m_stress_results->m_EKG_mean[0];
+			afsm_NORMAL->m_stress_results->m_EKG_SD[i] /= afsm_REST->m_stress_results->m_EKG_SD[0];
+			afsm_NORMAL->m_stress_results->m_EKG_SD2[i] /= afsm_REST->m_stress_results->m_EKG_SD2[0];
+			afsm_NORMAL->m_stress_results->m_EKG_Picard_1[i] /= afsm_REST->m_stress_results->m_EKG_Picard_1[0];
+			afsm_NORMAL->m_stress_results->m_EKG_Picard_2[i] /= afsm_REST->m_stress_results->m_EKG_Picard_2[0];
+			afsm_NORMAL->m_stress_results->m_EKG_Picard_F2[i] /= afsm_REST->m_stress_results->m_EKG_Picard_F2[0];
+			afsm_NORMAL->m_stress_results->m_EKG_max[i] /= afsm_REST->m_stress_results->m_EKG_max[0];
+			afsm_NORMAL->m_stress_results->m_EKG_Kurtosis[i] /= afsm_REST->m_stress_results->m_EKG_Kurtosis[0];
+
+			// Estimate stress level by weights
+
+			sum += (ww->weights[10] * afsm_NORMAL->m_stress_results->m_EKG_mean[i]);					/*11*/
+			sum += (ww->weights[11] * afsm_NORMAL->m_stress_results->m_EKG_SD[i]);						/*12*/
+			sum += (ww->weights[12] * afsm_NORMAL->m_stress_results->m_EKG_Picard_1[i]);				/*13*/
+			sum += (ww->weights[13] * afsm_NORMAL->m_stress_results->m_EKG_Picard_2[i]);				/*14*/
+			sum += (ww->weights[14] * afsm_NORMAL->m_stress_results->m_EKG_Picard_F2[i]);				/*15*/
+			sum += (ww->weights[15] * afsm_NORMAL->m_stress_results->m_EKG_max[i]);						/*16*/
+			sum += (ww->weights[16] * afsm_NORMAL->m_stress_results->m_EKG_Kurtosis[i]);				/*17*/
+			sum += (ww->weights[17] * afsm_NORMAL->m_stress_results->m_EKG_SD2[i]);						/*18*/
+
+		}
 
 		retVals.push_back(sum);
 
@@ -380,6 +446,6 @@ void CAffect_Sensing_Desctop_AppDlg::OnBnClickedButtonDetectStress()
 		AddUIString( A2CT(hhh.c_str()) );
 	}
 
-	delete afsm_rest;
-	delete afsm_normal;
+	delete afsm_REST;
+	delete afsm_NORMAL;
 }

@@ -1,6 +1,7 @@
 #pragma warning (disable : 4018)
 
-#include <affect_sensing_module.h>
+#include "affect_sensing_module.h"
+#include "affect_sensing_module_structures.h"
 
 #include <fstream>      // std::ifstream
 #include <sstream>      // std::istringstream
@@ -8,8 +9,6 @@
 
 #define _USE_MATH_DEFINES
 #include <math.h>
-
-//#include "IniFile.h"
 
 //////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////
@@ -63,17 +62,26 @@ affect_sensing_module::~affect_sensing_module()
 {
 	if ( m_file != NULL )
 	{
-		if ( m_file->data.size() != 0 )
-		{
-			for( unsigned int i=0 ; i<m_file->data.size() ; i++ )
-				m_file->data[i].clear();
-		}
-		m_file->data.clear();
-		m_file->valueNames.clear();
-		m_file->time.clear();
+		//if ( m_file->data.size() != 0 )
+		//{
+		//	for( unsigned int i=0 ; i<m_file->data.size() ; i++ )
+		//		m_file->data[i].clear();
+		//}
+		//m_file->data.clear();
+		//m_file->valueNames.clear();
+		m_file->time_GSR.clear();
+		m_file->time_IBI.clear();
+
+		m_file->GSR_data.clear();
+		m_file->IBI_data.clear();
 	
 		delete m_file;
 	}
+
+	m_timeSegments_GSR.clear();
+	m_timeSegments_IBI.clear();
+	m_time_GSR_index.clear();
+	m_time_IBI_index.clear();
 
 	if ( m_stress_results != NULL )
 		delete m_stress_results;
@@ -87,27 +95,15 @@ void affect_sensing_module::set_Column_Numbers()
 	ekgHF_ColNr = 3;
 }
 
-//////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////////////////////////////////////////
-/*							public functions							*/
-//////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////////////////////////////////////////
-
-	void affect_sensing_module::set_seconds_between_Intervals( int secs )
-	{
-		m_seconds_between_segments = secs ;
-	}
+	//////////////////////////////////////////////////////////////////////////
+	/*							public functions							*/
+	//////////////////////////////////////////////////////////////////////////
 	
 	void affect_sensing_module::set_fileName( std::string fileName_str )
 {
 	m_file->fileName = fileName_str ;
 
 	load_file_from_sensor_2( m_file->fileName );
-}
-	
-	string affect_sensing_module::get_fileName()
-{
-	return m_file->fileName ;
 }
 	
 	void affect_sensing_module::reset_fileName( std::string fileName )
@@ -119,7 +115,11 @@ void affect_sensing_module::set_Column_Numbers()
 	}
 	m_file->data.clear();
 	m_file->valueNames.clear();
-	m_file->time.clear();
+	m_file->time_GSR.clear();
+	m_file->time_IBI.clear();
+
+	m_file->GSR_data.clear();
+	m_file->IBI_data.clear();
 
 	delete m_file;
 
@@ -130,15 +130,38 @@ void affect_sensing_module::set_Column_Numbers()
 	load_file_from_sensor_2( m_file->fileName );
 }
 	
-	void affect_sensing_module::enable_print_txt()
-{
-	m_print_to_txt_enabled = true ;
-}
-	
-	void affect_sensing_module::enable_print_features()
-{
-	m_print_to_features_enabled = true ;
-}
+	void affect_sensing_module::set_time_segments()
+	{
+		double temp;
+		if (m_file->time_IBI[0] < m_file->time_GSR[0])
+			temp = m_file->time_IBI[0];
+		else
+			temp = m_file->time_GSR[0];
+
+		//// normalize time to Zero
+		for (unsigned int i = 0; i < m_file->time_IBI.size(); i++)
+		{
+			m_file->time_IBI[i] -= temp;
+		}
+		for (unsigned int i = 0; i < m_file->time_GSR.size(); i++)
+		{
+			m_file->time_GSR[i] -= temp;
+		}
+
+		segmentTime_GSR(m_seconds_between_segments);
+		segmentTime_IBI(m_seconds_between_segments);
+
+
+		if (m_timeSegments_GSR.size() >= m_timeSegments_IBI.size())
+		{
+			m_stress_results->m_num_of_segments = m_timeSegments_GSR.size() / 2;
+		}
+		else
+		{
+			m_stress_results->m_num_of_segments = m_timeSegments_IBI.size() / 2;
+		}
+		
+	}
 	
 	//////////////////////////////////////////////////////////////////////////
 	/*									GSR									*/
@@ -146,32 +169,19 @@ void affect_sensing_module::set_Column_Numbers()
 	
 	void affect_sensing_module::calculate_GSR_mean()
 {
-	vector< int > timeSegments = segmentTime( m_seconds_between_segments );
-
-
-	//std::vector<std::string> subName_trialNum = getSubNameAndTrialNum(m_file->fileName);
-	//
-	//if ( subName_trialNum[1].find("_trial1") != std::string::npos || 
-	//	 subName_trialNum[1].find("_trial2") != std::string::npos || 
-	//	 subName_trialNum[1].find("_trial5") != std::string::npos || 
-	//	 subName_trialNum[1].find("_trial6") != std::string::npos || 
-	//	 subName_trialNum[1].find("_rest_initial") != std::string::npos  ||
-	//	 subName_trialNum[1].find("_rest_1") != std::string::npos  ||
-	//	 subName_trialNum[1].find("_rest_2") != std::string::npos  )
-	//{
-	//	return;
-	//}
-
 	vector< double > results_GSR_mean_segmented ;
-	for ( unsigned int i=0 ; i<(timeSegments.size()) ; i += 2 )
+	for ( unsigned int i=0 ; i<(m_timeSegments_GSR.size()) ; i += 2 )
 	{
-		results_GSR_mean_segmented.push_back(calculate_GSR_mean( timeSegments[i] , timeSegments[i+1]) );
+		if (m_time_GSR_index[i])
+			results_GSR_mean_segmented.push_back(calculate_GSR_mean(m_timeSegments_GSR[i], m_timeSegments_GSR[i + 1]));
+		else
+			results_GSR_mean_segmented.push_back(-99.0);
 	}
 	
 	if ( m_print_to_txt_enabled )
 	{
 		std::stringstream ss;
-		ss << "Segments_(" << m_seconds_between_segments << "_" << (timeSegments.size()/2) << ")_";
+		ss << "Segments_(" << m_seconds_between_segments << "_" << (m_timeSegments_GSR.size()/2) << ")_";
 		ss << "GSR_MEAN.txt" ;
 		string toBeReplacedWith = ss.str();
 
@@ -192,26 +202,24 @@ void affect_sensing_module::set_Column_Numbers()
 		m_stress_results->m_GSR_mean.push_back( results_GSR_mean_segmented[i] );
 
 	results_GSR_mean_segmented.clear();
-	timeSegments.clear();
-
 }
 	
 	void affect_sensing_module::calculate_GSR_Standard_Deviation()
 {
-	vector< int > timeSegments = segmentTime( m_seconds_between_segments );
-
 	vector< double > results_GSR_SD_segmented ;
-	for ( unsigned int i=0 ; i<(timeSegments.size()) ; i += 2 )
+	for (unsigned int i = 0; i<(m_timeSegments_GSR.size()); i += 2)
 	{
-		results_GSR_SD_segmented.push_back(calculate_GSR_Standard_Deviation( timeSegments[i] , timeSegments[i+1]) );
+		if (m_time_GSR_index[i])
+			results_GSR_SD_segmented.push_back(calculate_GSR_Standard_Deviation(m_timeSegments_GSR[i], m_timeSegments_GSR[i + 1]));
+		else
+			results_GSR_SD_segmented.push_back(-99.0);
 	}
 
 	if ( m_print_to_txt_enabled )
 	{
 
 		std::stringstream ss;
-		ss << "Segments_(" << m_seconds_between_segments << "_" << (timeSegments.size()/2) << ")_";
-		//ss << "GSR_SD_Segmented_Results.txt" ;
+		ss << "Segments_(" << m_seconds_between_segments << "_" << (m_timeSegments_GSR.size()/2) << ")_";
 		ss << "GSR_SD.txt" ;
 		string toBeReplacedWith = ss.str();
 	
@@ -232,26 +240,29 @@ void affect_sensing_module::set_Column_Numbers()
 	for (unsigned int i=0 ; i<results_GSR_SD_segmented.size() ; i++)
 		m_stress_results->m_GSR_sd.push_back(results_GSR_SD_segmented[i]);
 
-	m_stress_results->m_num_of_segments = timeSegments.size() / 2 ;
-	
+	m_stress_results->m_num_of_segments = m_timeSegments_GSR.size() / 2 ;
+
 	results_GSR_SD_segmented.clear();
-	timeSegments.clear();
 }
 	
 	void affect_sensing_module::calculate_GSR_1stDerivative_RootMeanSquare()
 {
-	vector< int > timeSegments = segmentTime( m_seconds_between_segments );
+	//vector< int > timeSegments = segmentTime_GSR( m_seconds_between_segments );
 
 	vector< double > results_GSR_RMS_segmented ;
-	for ( unsigned int i=0 ; i<(timeSegments.size()) ; i += 2 )
+	//for ( unsigned int i=0 ; i<(timeSegments.size()) ; i += 2 )
+	for (unsigned int i = 0; i<(m_timeSegments_GSR.size()); i += 2)
 	{
-		results_GSR_RMS_segmented.push_back(calculate_GSR_1stDerivative_RootMeanSquare( timeSegments[i] , timeSegments[i+1]) );
+		if (m_time_GSR_index[i])
+			results_GSR_RMS_segmented.push_back(calculate_GSR_1stDerivative_RootMeanSquare(m_timeSegments_GSR[i], m_timeSegments_GSR[i + 1]));
+		else
+			results_GSR_RMS_segmented.push_back(-99.0);
 	}
 
 	if ( m_print_to_txt_enabled )
 	{
 		std::stringstream ss;
-		ss << "Segments_(" << m_seconds_between_segments << "_" << (timeSegments.size()/2) << ")_";
+		ss << "Segments_(" << m_seconds_between_segments << "_" << (m_timeSegments_GSR.size()/2) << ")_";
 		//ss << "GSR_RMS_Segmented_Results.txt" ;
 		ss << "GSR_RMS.txt" ;
 		string toBeReplacedWith = ss.str();
@@ -274,23 +285,26 @@ void affect_sensing_module::set_Column_Numbers()
 		m_stress_results->m_GSR_1stDer_RMS.push_back(results_GSR_RMS_segmented[i]);
 
 	results_GSR_RMS_segmented.clear();
-	timeSegments.clear();
 }
 	
 	void affect_sensing_module::calculate_GSR_1stDerivative_Average()
 {
-	vector< int > timeSegments = segmentTime( m_seconds_between_segments );
+	//vector< int > timeSegments = segmentTime_GSR( m_seconds_between_segments );
 
 	vector< double > results_GSR_AVG_segmented ;
-	for ( unsigned int i=0 ; i<(timeSegments.size()) ; i += 2 )
+	//for ( unsigned int i=0 ; i<(timeSegments.size()) ; i += 2 )
+	for (unsigned int i = 0; i<(m_timeSegments_GSR.size()); i += 2)
 	{
-		results_GSR_AVG_segmented.push_back(calculate_GSR_1stDerivative_Average( timeSegments[i] , timeSegments[i+1]) );
+		if (m_time_GSR_index[i])
+			results_GSR_AVG_segmented.push_back(calculate_GSR_1stDerivative_Average(m_timeSegments_GSR[i], m_timeSegments_GSR[i + 1]));
+		else
+			results_GSR_AVG_segmented.push_back(-99.0);
 	}
 
 	if ( m_print_to_txt_enabled )
 	{
 		std::stringstream ss;
-		ss << "Segments_(" << m_seconds_between_segments << "_" << (timeSegments.size()/2) << ")_";
+		ss << "Segments_(" << m_seconds_between_segments << "_" << (m_timeSegments_GSR.size()/2) << ")_";
 		ss << "GSR_AVG.txt" ;
 		string toBeReplacedWith = ss.str();
 
@@ -312,24 +326,31 @@ void affect_sensing_module::set_Column_Numbers()
 		m_stress_results->m_GSR_1stDer_AVG.push_back(results_GSR_AVG_segmented[i]);
 
 	results_GSR_AVG_segmented.clear();
-	timeSegments.clear();
 }
 	
 	void affect_sensing_module::calculate_GSR_SCR_Features()
 {
-	vector< int > timeSegments = segmentTime( m_seconds_between_segments );
 
 	vector< vector<double> > results_GSR_SCR_segmented ;
-	for ( unsigned int i=0 ; i<(timeSegments.size()) ; i += 2 )
+	for (unsigned int i = 0; i<(m_timeSegments_GSR.size()); i += 2)
 	{
+		if (m_time_GSR_index[i])
+			results_GSR_SCR_segmented.push_back(calculate_GSR_SCR_Features(m_timeSegments_GSR[i], m_timeSegments_GSR[i + 1]));
+		else
+		{
+			vector<double> hhh;
+			hhh.push_back(-99.0);
+			hhh.push_back(-99.0);
+			hhh.push_back(-99.0);
 
-		results_GSR_SCR_segmented.push_back(calculate_GSR_SCR_Features( timeSegments[i] , timeSegments[i+1]) );
+			results_GSR_SCR_segmented.push_back(hhh);
+		}
 	}
 
 	if ( m_print_to_txt_enabled )
 	{
 		std::stringstream ss;
-		ss << "Segments_(" << m_seconds_between_segments << "_" << (timeSegments.size()/2) << ")_";
+		ss << "Segments_(" << m_seconds_between_segments << "_" << (m_timeSegments_GSR.size()/2) << ")_";
 		ss << "GSR_SCR_Features.txt" ;
 		string toBeReplacedWith = ss.str();
 	
@@ -359,24 +380,24 @@ void affect_sensing_module::set_Column_Numbers()
 	for ( unsigned int i=0 ; i<results_GSR_SCR_segmented.size() ; i++ )
 		results_GSR_SCR_segmented[i].clear();
 	results_GSR_SCR_segmented.clear();
-	timeSegments.clear();
 }
 	
 	void affect_sensing_module::calculate_GSR_Picard_1()
 {
-	vector< int > timeSegments = segmentTime( m_seconds_between_segments );
-
 	vector<double> results_GSR_Picard_segmented ;
-	for ( unsigned int i=0 ; i<(timeSegments.size()) ; i += 2 )
+	//for ( unsigned int i=0 ; i<(timeSegments.size()) ; i += 2 )
+	for (unsigned int i = 0; i<(m_timeSegments_GSR.size()); i += 2)
 	{
-
-		results_GSR_Picard_segmented.push_back(calculate_GSR_Picard_1( timeSegments[i] , timeSegments[i+1]) );
+		if (m_time_GSR_index[i])
+			results_GSR_Picard_segmented.push_back(calculate_GSR_Picard_1(m_timeSegments_GSR[i], m_timeSegments_GSR[i + 1]));
+		else
+			results_GSR_Picard_segmented.push_back(-99.0);
 	}
 
 	if ( m_print_to_txt_enabled )
 	{
 		std::stringstream ss;
-		ss << "Segments_(" << m_seconds_between_segments << "_" << (timeSegments.size()/2) << ")_";
+		ss << "Segments_(" << m_seconds_between_segments << "_" << (m_timeSegments_GSR.size()/2) << ")_";
 		//ss << "GSR_Picard_1_Segmented_Results.txt" ;
 		ss << "GSR_Picard_1.txt" ;
 		string toBeReplacedWith = ss.str();
@@ -399,25 +420,24 @@ void affect_sensing_module::set_Column_Numbers()
 		m_stress_results->m_GSR_Picard_1.push_back(results_GSR_Picard_segmented[i]);
 
 	results_GSR_Picard_segmented.clear();
-	timeSegments.clear();
+
 }
 	
 	void affect_sensing_module::calculate_GSR_Picard_2()
 {
-	vector< int > timeSegments = segmentTime( m_seconds_between_segments );
-
 	vector<double> results_GSR_Picard_segmented ;
-	for ( unsigned int i=0 ; i<(timeSegments.size()) ; i += 2 )
+	for ( unsigned int i=0 ; i<(m_timeSegments_GSR.size()) ; i += 2 )
 	{
-
-		results_GSR_Picard_segmented.push_back(calculate_GSR_Picard_2( timeSegments[i] , timeSegments[i+1]) );
+		if (m_time_GSR_index[i])
+			results_GSR_Picard_segmented.push_back(calculate_GSR_Picard_2(m_timeSegments_GSR[i], m_timeSegments_GSR[i + 1]));
+		else
+			results_GSR_Picard_segmented.push_back(-99.0);
 	}
 
 	if ( m_print_to_txt_enabled )
 	{
 		std::stringstream ss;
-		ss << "Segments_(" << m_seconds_between_segments << "_" << (timeSegments.size()/2) << ")_";
-		//ss << "GSR_Picard_2_Segmented_Results.txt" ;
+		ss << "Segments_(" << m_seconds_between_segments << "_" << (m_timeSegments_GSR.size()/2) << ")_";
 		ss << "GSR_Picard_2.txt" ;
 		string toBeReplacedWith = ss.str();
 	
@@ -439,25 +459,23 @@ void affect_sensing_module::set_Column_Numbers()
 		m_stress_results->m_GSR_Picard_2.push_back(results_GSR_Picard_segmented[i]);
 
 	results_GSR_Picard_segmented.clear();
-	timeSegments.clear();
 }
 	
 	void affect_sensing_module::calculate_GSR_Picard_3()
 {
-	vector< int > timeSegments = segmentTime( m_seconds_between_segments );
-
 	vector<double> results_GSR_Picard_segmented ;
-	for ( unsigned int i=0 ; i<(timeSegments.size()) ; i += 2 )
+	for (unsigned int i = 0; i<(m_timeSegments_GSR.size()); i += 2)
 	{
-
-		results_GSR_Picard_segmented.push_back(calculate_GSR_Picard_3( timeSegments[i] , timeSegments[i+1]) );
+		if (m_time_GSR_index[i])
+			results_GSR_Picard_segmented.push_back(calculate_GSR_Picard_3(m_timeSegments_GSR[i], m_timeSegments_GSR[i + 1]));
+		else
+			results_GSR_Picard_segmented.push_back(-99.0);
 	}
 
 	if ( m_print_to_txt_enabled )
 	{
 		std::stringstream ss;
-		ss << "Segments_(" << m_seconds_between_segments << "_" << (timeSegments.size()/2) << ")_";
-		//ss << "GSR_Picard_3_Segmented_Results.txt" ;
+		ss << "Segments_(" << m_seconds_between_segments << "_" << (m_timeSegments_GSR.size()/2) << ")_";
 		ss << "GSR_Picard_3.txt" ;
 		string toBeReplacedWith = ss.str();
 	
@@ -479,24 +497,23 @@ void affect_sensing_module::set_Column_Numbers()
 		m_stress_results->m_GSR_Picard_3.push_back(results_GSR_Picard_segmented[i]);
 
 	results_GSR_Picard_segmented.clear();
-	timeSegments.clear();
 }
 	
 	void affect_sensing_module::calculate_GSR_Picard_F2()
 {
-	vector< int > timeSegments = segmentTime( m_seconds_between_segments );
-
 	vector<double> results_GSR_Picard_segmented ;
-	for ( unsigned int i=0 ; i<(timeSegments.size()) ; i += 2 )
+	for ( unsigned int i=0 ; i<(m_timeSegments_GSR.size()) ; i += 2 )
 	{
-
-		results_GSR_Picard_segmented.push_back(calculate_GSR_Picard_F2( timeSegments[i] , timeSegments[i+1]) );
+		if (m_time_GSR_index[i])
+			results_GSR_Picard_segmented.push_back(calculate_GSR_Picard_F2(m_timeSegments_GSR[i], m_timeSegments_GSR[i + 1]));
+		else
+			results_GSR_Picard_segmented.push_back(-99.0);
 	}
 
 	if ( m_print_to_txt_enabled )
 	{
 		std::stringstream ss;
-		ss << "Segments_(" << m_seconds_between_segments << "_" << (timeSegments.size()/2) << ")_";
+		ss << "Segments_(" << m_seconds_between_segments << "_" << (m_timeSegments_GSR.size()/2) << ")_";
 		ss << "GSR_Picard_F2.txt" ;
 		string toBeReplacedWith = ss.str();
 	
@@ -518,41 +535,42 @@ void affect_sensing_module::set_Column_Numbers()
 		m_stress_results->m_GSR_Picard_F2.push_back(results_GSR_Picard_segmented[i]);
 
 	results_GSR_Picard_segmented.clear();
-	timeSegments.clear();
 
 }
 	
 	void affect_sensing_module::calculate_GSR_SCR_Percentile_Features()
 {
-	vector< int > timeSegments = segmentTime( m_seconds_between_segments );
-
-
-	//// results_GSR_SCR_segmented --> segments X 5
-	//vector< vector<double> > results_GSR_SCR_segmented ;
-	//for ( unsigned int i=0 ; i<(timeSegments.size()) ; i += 2 )
-	//{
-	//	results_GSR_SCR_segmented.push_back(calculate_GSR_SCR_Percentile_Features( timeSegments[i] , timeSegments[i+1]) );
-	//}
 
 	// results_GSR_SCR_segmented --> 5 X segments
 	vector< vector< double > > results_GSR_SCR_segmented ;
 	results_GSR_SCR_segmented.resize(10);
-	for ( unsigned int i=0 ; i<timeSegments.size() ; i+=2 )
+	for ( unsigned int i=0 ; i<m_timeSegments_GSR.size() ; i+=2 )
 	{
-		vector<double> temp = calculate_GSR_SCR_Percentile_Features( timeSegments[i] , timeSegments[i+1] ) ;
-		for ( unsigned int j=0 ; j<temp.size() ; j++ )
+		if (m_time_GSR_index[i])
 		{
-			results_GSR_SCR_segmented[j].push_back(temp[j]);
+			vector<double> temp = calculate_GSR_SCR_Percentile_Features(m_timeSegments_GSR[i], m_timeSegments_GSR[i + 1]);
+			for (unsigned int j = 0; j<temp.size(); j++)
+			{
+				results_GSR_SCR_segmented[j].push_back(temp[j]);
+			}
+			temp.clear();
 		}
-		temp.clear();
+		else
+		{
+			vector<double> temp;
+			for (unsigned int k = 0; k < 10; k++)
+				temp.push_back(-99.0);
+			for (unsigned int j = 0; j < temp.size(); j++)
+				results_GSR_SCR_segmented[j].push_back(temp[j]);
+			temp.clear();
+		}
 	}
 
 
 	if ( m_print_to_txt_enabled )
 	{
 		std::stringstream ss;
-		ss << "Segments_(" << m_seconds_between_segments << "_" << (timeSegments.size()/2) << ")_";
-		//ss << "GSR_SCR_Percentile_Features_Segmented_Results.txt" ;
+		ss << "Segments_(" << m_seconds_between_segments << "_" << (m_timeSegments_GSR.size()/2) << ")_";
 		ss << "GSR_SCR_Percentile_Features.txt" ;
 		string toBeReplacedWith = ss.str();
 	
@@ -597,24 +615,28 @@ void affect_sensing_module::set_Column_Numbers()
 	for ( unsigned int i=0 ; i<results_GSR_SCR_segmented.size() ; i++ )
 		results_GSR_SCR_segmented[i].clear();
 	results_GSR_SCR_segmented.clear();
-	timeSegments.clear();
 }
 	
 	void affect_sensing_module::calculate_GSR_MIN_MAX_Features()
 {
-	vector< int > timeSegments = segmentTime( m_seconds_between_segments );
-
 	vector<vector<double>> results_GSR_MINMAX_segmented ;
-	for ( unsigned int i=0 ; i<(timeSegments.size()) ; i += 2 )
+	for ( unsigned int i=0 ; i<(m_timeSegments_GSR.size()) ; i += 2 )
 	{
-		results_GSR_MINMAX_segmented.push_back(calculate_GSR_MIN_MAX_Features( timeSegments[i] , timeSegments[i+1]) );
+		if (m_time_GSR_index[i])
+			results_GSR_MINMAX_segmented.push_back(calculate_GSR_MIN_MAX_Features(m_timeSegments_GSR[i] , m_timeSegments_GSR[i+1]) );
+		else
+		{
+			vector<double> temp;
+			temp.push_back(-99.0);
+			temp.push_back(-99.0);
+			results_GSR_MINMAX_segmented.push_back(temp);
+		}
 	}
 
 	if ( m_print_to_txt_enabled )
 	{
 		std::stringstream ss;
-		ss << "Segments_(" << m_seconds_between_segments << "_" << (timeSegments.size()/2) << ")_";
-		//ss << "GSR_MIN_MAX_Segmented_Results.txt" ;
+		ss << "Segments_(" << m_seconds_between_segments << "_" << (m_timeSegments_GSR.size()/2) << ")_";
 		ss << "GSR_MIN_MAX.txt" ;
 		string toBeReplacedWith = ss.str();
 	
@@ -642,24 +664,28 @@ void affect_sensing_module::set_Column_Numbers()
 	for (unsigned int i=0 ; i<results_GSR_MINMAX_segmented.size() ; i++)
 		results_GSR_MINMAX_segmented[i].clear();
 	results_GSR_MINMAX_segmented.clear();
-	timeSegments.clear();
 }
 	
 	void affect_sensing_module::calculate_GSR_Kurtosis_Skewness()
 {
-	vector< int > timeSegments = segmentTime( m_seconds_between_segments );
-
 	vector<vector<double>> results_GSR_Kurt_Skew_segmented ;
-	for ( unsigned int i=0 ; i<(timeSegments.size()) ; i += 2 )
+	for ( unsigned int i=0 ; i<(m_timeSegments_GSR.size()) ; i += 2 )
 	{
-		results_GSR_Kurt_Skew_segmented.push_back(calculate_GSR_Kurtosis_Skewness( timeSegments[i] , timeSegments[i+1]) );
+		if (m_time_GSR_index[i])
+			results_GSR_Kurt_Skew_segmented.push_back(calculate_GSR_Kurtosis_Skewness(m_timeSegments_GSR[i], m_timeSegments_GSR[i + 1]));
+		else
+		{
+			vector<double> temp;
+			temp.push_back(-99.0);
+			temp.push_back(-99.0);
+			results_GSR_Kurt_Skew_segmented.push_back(temp);
+		}
 	}
 
 	if ( m_print_to_txt_enabled )
 	{
 		std::stringstream ss;
-		ss << "Segments_(" << m_seconds_between_segments << "_" << (timeSegments.size()/2) << ")_";
-		//ss << "GSR_Kurtosis_Skewness_Segmented_Results.txt" ;
+		ss << "Segments_(" << m_seconds_between_segments << "_" << (m_timeSegments_GSR.size()/2) << ")_";
 		ss << "GSR_Kurtosis_Skewness.txt" ;
 		string toBeReplacedWith = ss.str();
 	
@@ -687,26 +713,25 @@ void affect_sensing_module::set_Column_Numbers()
 	for (unsigned int i=0 ; i<results_GSR_Kurt_Skew_segmented.size() ; i++)
 		results_GSR_Kurt_Skew_segmented[i].clear();
 	results_GSR_Kurt_Skew_segmented.clear();
-	timeSegments.clear();
 
 }
 	
 	void affect_sensing_module::calculate_GSR_1st_Derivative_negativeSamplesProportion()
 {
-	vector< int > timeSegments = segmentTime( m_seconds_between_segments );
-
 	vector<double> results_GSR_1st_Derivative_negativeSamplesProportion_segmented ;
-	for ( unsigned int i=0 ; i<(timeSegments.size()) ; i += 2 )
+	for ( unsigned int i=0 ; i<(m_timeSegments_GSR.size()) ; i += 2 )
 	{
-
-		results_GSR_1st_Derivative_negativeSamplesProportion_segmented.
-			push_back(calculate_GSR_1st_Derivative_negativeSamplesProportion( timeSegments[i] , timeSegments[i+1]) );
+		if (m_time_GSR_index[i])
+			results_GSR_1st_Derivative_negativeSamplesProportion_segmented.
+			push_back(calculate_GSR_1st_Derivative_negativeSamplesProportion(m_timeSegments_GSR[i], m_timeSegments_GSR[i + 1]));
+		else
+			results_GSR_1st_Derivative_negativeSamplesProportion_segmented.push_back(-99.0);
 	}
 
 	if ( m_print_to_txt_enabled )
 	{
 		std::stringstream ss;
-		ss << "Segments_(" << m_seconds_between_segments << "_" << (timeSegments.size()/2) << ")_";
+		ss << "Segments_(" << m_seconds_between_segments << "_" << (m_timeSegments_GSR.size()/2) << ")_";
 		ss << "GSR_1st_Derivative_NegativeSamplesProportion.txt" ;
 		string toBeReplacedWith = ss.str();
 	
@@ -728,23 +753,29 @@ void affect_sensing_module::set_Column_Numbers()
 		m_stress_results->m_GSR_1stDer_NegSampProp.push_back(results_GSR_1st_Derivative_negativeSamplesProportion_segmented[i]);
 
 	results_GSR_1st_Derivative_negativeSamplesProportion_segmented.clear();
-	timeSegments.clear();
 }
 	
 	void affect_sensing_module::calculate_GSR_Smooth_Derivative_Avg_RMS_NegSamplesProportion()
 {
-	vector< int > timeSegments = segmentTime( m_seconds_between_segments );
-
 	vector<vector<double>> results_GSR_segmented ;
-	for ( unsigned int i=0 ; i<(timeSegments.size()) ; i += 2 )
+	for ( unsigned int i=0 ; i<(m_timeSegments_GSR.size()) ; i += 2 )
 	{
-		results_GSR_segmented.push_back(calculate_GSR_Smooth_Derivative_Avg_RMS_NegSamplesProportion( timeSegments[i] , timeSegments[i+1]) );
+		if (m_time_GSR_index[i])
+			results_GSR_segmented.push_back(calculate_GSR_Smooth_Derivative_Avg_RMS_NegSamplesProportion(m_timeSegments_GSR[i], m_timeSegments_GSR[i + 1]));
+		else
+		{
+			vector<double> temp;
+			temp.push_back(-99.0);
+			temp.push_back(-99.0);
+			temp.push_back(-99.0);
+			results_GSR_segmented.push_back(temp);
+		}
 	}
 
 	if ( m_print_to_txt_enabled )
 	{
 		std::stringstream ss;
-		ss << "Segments_(" << m_seconds_between_segments << "_" << (timeSegments.size()/2) << ")_";
+		ss << "Segments_(" << m_seconds_between_segments << "_" << (m_timeSegments_GSR.size()/2) << ")_";
 		//ss << "GSR_Smooth_Derivative_Avg_RMS_NegSamplesProportion_Segmented_Results.txt" ;
 		ss << "GSR_Smooth_Derivative_Avg_RMS_NegSamplesProportion.txt" ;
 		string toBeReplacedWith = ss.str();
@@ -776,25 +807,24 @@ void affect_sensing_module::set_Column_Numbers()
 	for (unsigned int i=0 ; i<results_GSR_segmented.size() ; i++)
 		results_GSR_segmented[i].clear();
 	results_GSR_segmented.clear();
-	timeSegments.clear();
 }
 	
 	void affect_sensing_module::calculate_GSR_SCR_Features_gsr31_AeriaUnderSCR_Avg()
 {
-	vector< int > timeSegments = segmentTime( m_seconds_between_segments );
-
 	vector<double> results_GSR_AeriaUnderSCR_Avg_segmented ;
-	for ( unsigned int i=0 ; i<(timeSegments.size()) ; i += 2 )
+	for ( unsigned int i=0 ; i<(m_timeSegments_GSR.size()) ; i += 2 )
 	{
-		results_GSR_AeriaUnderSCR_Avg_segmented.
-			push_back(calculate_GSR_SCR_Features_gsr31_AeriaUnderSCR_Avg( timeSegments[i] , timeSegments[i+1]) );
+		if (m_time_GSR_index[i])
+			results_GSR_AeriaUnderSCR_Avg_segmented.
+			push_back(calculate_GSR_SCR_Features_gsr31_AeriaUnderSCR_Avg(m_timeSegments_GSR[i], m_timeSegments_GSR[i + 1]));
+		else
+			results_GSR_AeriaUnderSCR_Avg_segmented.push_back(-99.0);
 	}
 
 	if ( m_print_to_txt_enabled )
 	{
 		std::stringstream ss;
-		ss << "Segments_(" << m_seconds_between_segments << "_" << (timeSegments.size()/2) << ")_";
-		//ss << "GSR_SCR_Features_gsr31_AeriaUnderSCR_Avg_Segmented_Results.txt" ;
+		ss << "Segments_(" << m_seconds_between_segments << "_" << (m_timeSegments_GSR.size()/2) << ")_";
 		ss << "GSR_SCR_Features_gsr31_AeriaUnderSCR_Avg.txt" ;
 		string toBeReplacedWith = ss.str();
 
@@ -817,29 +847,28 @@ void affect_sensing_module::set_Column_Numbers()
 	}
 
 	results_GSR_AeriaUnderSCR_Avg_segmented.clear();
-	timeSegments.clear();
 }
 	
 	//////////////////////////////////////////////////////////////////////////
 	/*									IBI									*/
 	//////////////////////////////////////////////////////////////////////////
 	
-	
 	void affect_sensing_module::calculate_EKG_LFdivHF_Avg()
 {
-	vector< int > timeSegments = segmentTime( m_seconds_between_segments );
-
 	vector<double> results_EKG_LFdivHF_segmented ;
-	for ( unsigned int i=0 ; i<(timeSegments.size()) ; i += 2 )
+	for ( unsigned int i=0 ; i<(m_timeSegments_IBI.size()) ; i += 2 )
 	{
-		results_EKG_LFdivHF_segmented.
-			push_back(calculate_EKG_LFdivHF_Avg( timeSegments[i] , timeSegments[i+1]) );
+		if (m_time_IBI_index[i])
+			results_EKG_LFdivHF_segmented.
+			push_back(calculate_EKG_LFdivHF_Avg(m_timeSegments_IBI[i], m_timeSegments_IBI[i + 1]));
+		else
+			results_EKG_LFdivHF_segmented.push_back(-99.0);
 	}
 
 	if ( m_print_to_txt_enabled )
 	{
 		std::stringstream ss;
-		ss << "Segments_(" << m_seconds_between_segments << "_" << (timeSegments.size()/2) << ")_";
+		ss << "Segments_(" << m_seconds_between_segments << "_" << (m_timeSegments_IBI.size()/2) << ")_";
 		ss << "EKG_LFdivHF.txt" ;
 		string toBeReplacedWith = ss.str();
 
@@ -862,24 +891,24 @@ void affect_sensing_module::set_Column_Numbers()
 	}
 
 	results_EKG_LFdivHF_segmented.clear();
-	timeSegments.clear();
 }
 	 
 	void affect_sensing_module::calculate_EKG_RMSSD()
 {
-	vector< int > timeSegments = segmentTime( m_seconds_between_segments );
-
 	vector<double> results_EKG_RMSSD_segmented ;
-	for ( unsigned int i=0 ; i<(timeSegments.size()) ; i += 2 )
+	for ( unsigned int i=0 ; i<(m_timeSegments_IBI.size()) ; i += 2 )
 	{
-		results_EKG_RMSSD_segmented.
-			push_back(calculate_EKG_RMSSD( timeSegments[i] , timeSegments[i+1]) );
+		if (m_time_IBI_index[i])
+			results_EKG_RMSSD_segmented.
+			push_back(calculate_EKG_RMSSD(m_timeSegments_IBI[i], m_timeSegments_IBI[i + 1]));
+		else
+			results_EKG_RMSSD_segmented.push_back(-99.0);
 	}
 
 	if ( m_print_to_txt_enabled )
 	{
 		std::stringstream ss;
-		ss << "Segments_(" << m_seconds_between_segments << "_" << (timeSegments.size()/2) << ")_";
+		ss << "Segments_(" << m_seconds_between_segments << "_" << (m_timeSegments_IBI.size()/2) << ")_";
 		ss << "EKG_RMSSD.txt" ;
 		string toBeReplacedWith = ss.str();
 
@@ -902,24 +931,29 @@ void affect_sensing_module::set_Column_Numbers()
 	}
 
 	results_EKG_RMSSD_segmented.clear();
-	timeSegments.clear();
 }
 	
 	void affect_sensing_module::calculate_EKG_SD1_SD2()
 {
-	vector< int > timeSegments = segmentTime( m_seconds_between_segments );
-
 	vector<vector<double>> results_EKG_SD1_SD2_segmented ;
-	for ( unsigned int i=0 ; i<(timeSegments.size()) ; i += 2 )
+	for ( unsigned int i=0 ; i<(m_timeSegments_IBI.size()) ; i += 2 )
 	{
-		results_EKG_SD1_SD2_segmented.
-			push_back(calculate_EKG_SD1_SD2( timeSegments[i] , timeSegments[i+1]) );
+		if (m_time_IBI_index[i])
+			results_EKG_SD1_SD2_segmented.
+			push_back(calculate_EKG_SD1_SD2(m_timeSegments_IBI[i] , m_timeSegments_IBI[i+1]) );
+		else
+		{
+			vector<double> temp;
+			temp.push_back(-99.0);
+			temp.push_back(-99.0);
+			results_EKG_SD1_SD2_segmented.push_back(temp);
+		}
 	}
 
 	if ( m_print_to_txt_enabled )
 	{
 		std::stringstream ss;
-		ss << "Segments_(" << m_seconds_between_segments << "_" << (timeSegments.size()/2) << ")_";
+		ss << "Segments_(" << m_seconds_between_segments << "_" << (m_timeSegments_IBI.size()/2) << ")_";
 		ss << "EKG_SD1_SD2.txt" ;
 		string toBeReplacedWith = ss.str();
 
@@ -947,24 +981,23 @@ void affect_sensing_module::set_Column_Numbers()
 	for (unsigned int i=0 ; i<results_EKG_SD1_SD2_segmented.size() ; i++)
 		results_EKG_SD1_SD2_segmented[i].clear();
 	results_EKG_SD1_SD2_segmented.clear();
-	timeSegments.clear();
 }
 	
 	void affect_sensing_module::calculate_EKG_Picard_F2()
 {
-	vector< int > timeSegments = segmentTime( m_seconds_between_segments );
-
 	vector<double> results_EKG_Picard_segmented ;
-	for ( unsigned int i=0 ; i<(timeSegments.size()) ; i += 2 )
+	for ( unsigned int i=0 ; i<(m_timeSegments_IBI.size()) ; i += 2 )
 	{
-
-		results_EKG_Picard_segmented.push_back(calculate_EKG_Picard_F2( timeSegments[i] , timeSegments[i+1]) );
+		if (m_time_IBI_index[i])
+			results_EKG_Picard_segmented.push_back(calculate_EKG_Picard_F2(m_timeSegments_IBI[i], m_timeSegments_IBI[i + 1]));
+		else
+			results_EKG_Picard_segmented.push_back(-99.0);
 	}
 
 	if ( m_print_to_txt_enabled )
 	{
 		std::stringstream ss;
-		ss << "Segments_(" << m_seconds_between_segments << "_" << (timeSegments.size()/2) << ")_";
+		ss << "Segments_(" << m_seconds_between_segments << "_" << (m_timeSegments_IBI.size()/2) << ")_";
 		ss << "EKG_Picard_F2.txt" ;
 		string toBeReplacedWith = ss.str();
 
@@ -986,24 +1019,23 @@ void affect_sensing_module::set_Column_Numbers()
 		m_stress_results->m_EKG_Picard_F2.push_back(results_EKG_Picard_segmented[i]);
 
 	results_EKG_Picard_segmented.clear();
-	timeSegments.clear();
 }
 	
 	void affect_sensing_module::calculate_EKG_Mean()
 {
-	vector< int > timeSegments = segmentTime( m_seconds_between_segments );
-
 	vector<double> results_EKG_Avg_segmented ;
-	for ( unsigned int i=0 ; i<(timeSegments.size()) ; i += 2 )
+	for ( unsigned int i=0 ; i<(m_timeSegments_IBI.size()) ; i += 2 )
 	{
-
-		results_EKG_Avg_segmented.push_back(calculate_EKG_Mean( timeSegments[i] , timeSegments[i+1]) );
+		if (m_time_IBI_index[i])
+			results_EKG_Avg_segmented.push_back(calculate_EKG_Mean(m_timeSegments_IBI[i], m_timeSegments_IBI[i + 1]));
+		else
+			results_EKG_Avg_segmented.push_back(-99.0);
 	}
 
 	if ( m_print_to_txt_enabled )
 	{
 		std::stringstream ss;
-		ss << "Segments_(" << m_seconds_between_segments << "_" << (timeSegments.size()/2) << ")_";
+		ss << "Segments_(" << m_seconds_between_segments << "_" << (m_timeSegments_IBI.size()/2) << ")_";
 		ss << "EKG_Mean.txt" ;
 		string toBeReplacedWith = ss.str();
 
@@ -1025,24 +1057,23 @@ void affect_sensing_module::set_Column_Numbers()
 		m_stress_results->m_EKG_mean.push_back(results_EKG_Avg_segmented[i]);
 
 	results_EKG_Avg_segmented.clear();
-	timeSegments.clear();
 }
 	
 	void affect_sensing_module::calculate_EKG_SD()
 {	
-	vector< int > timeSegments = segmentTime( m_seconds_between_segments );
-
 	vector<double> results_EKG_SD_segmented ;
-	for ( unsigned int i=0 ; i<(timeSegments.size()) ; i += 2 )
+	for ( unsigned int i=0 ; i<(m_timeSegments_IBI.size()) ; i += 2 )
 	{
-
-		results_EKG_SD_segmented.push_back(calculate_EKG_SD( timeSegments[i] , timeSegments[i+1]) );
+		if (m_time_IBI_index[i])
+			results_EKG_SD_segmented.push_back(calculate_EKG_SD(m_timeSegments_IBI[i], m_timeSegments_IBI[i + 1]));
+		else
+			results_EKG_SD_segmented.push_back(-99.0);
 	}
 
 	if ( m_print_to_txt_enabled )
 	{
 		std::stringstream ss;
-		ss << "Segments_(" << m_seconds_between_segments << "_" << (timeSegments.size()/2) << ")_";
+		ss << "Segments_(" << m_seconds_between_segments << "_" << (m_timeSegments_IBI.size()/2) << ")_";
 		ss << "EKG_SD.txt" ;
 		string toBeReplacedWith = ss.str();
 
@@ -1064,25 +1095,23 @@ void affect_sensing_module::set_Column_Numbers()
 		m_stress_results->m_EKG_SD.push_back(results_EKG_SD_segmented[i]);
 
 	results_EKG_SD_segmented.clear();
-	timeSegments.clear();
-
 }
 
 	void affect_sensing_module::calculate_EKG_Picard_1()
 	{
-		vector< int > timeSegments = segmentTime( m_seconds_between_segments );
-
 		vector<double> results_EKG_Picard_1_segmented ;
-		for ( unsigned int i=0 ; i<(timeSegments.size()) ; i += 2 )
+		for ( unsigned int i=0 ; i<(m_timeSegments_IBI.size()) ; i += 2 )
 		{
-
-			results_EKG_Picard_1_segmented.push_back(calculate_EKG_Picard_1( timeSegments[i] , timeSegments[i+1]) );
+			if (m_time_IBI_index[i])
+				results_EKG_Picard_1_segmented.push_back(calculate_EKG_Picard_1(m_timeSegments_IBI[i], m_timeSegments_IBI[i + 1]));
+			else
+				results_EKG_Picard_1_segmented.push_back(-99.0);
 		}
 
 		if ( m_print_to_txt_enabled )
 		{
 			std::stringstream ss;
-			ss << "Segments_(" << m_seconds_between_segments << "_" << (timeSegments.size()/2) << ")_";
+			ss << "Segments_(" << m_seconds_between_segments << "_" << (m_timeSegments_IBI.size()/2) << ")_";
 			ss << "EKG_Picard_1.txt" ;
 			string toBeReplacedWith = ss.str();
 
@@ -1104,24 +1133,23 @@ void affect_sensing_module::set_Column_Numbers()
 			m_stress_results->m_EKG_Picard_1.push_back(results_EKG_Picard_1_segmented[i]);
 
 		results_EKG_Picard_1_segmented.clear();
-		timeSegments.clear();
 	}
 
 	void affect_sensing_module::calculate_EKG_Picard_2()
 	{
-		vector< int > timeSegments = segmentTime( m_seconds_between_segments );
-
 		vector<double> results_EKG_Picard_2_segmented ;
-		for ( unsigned int i=0 ; i<(timeSegments.size()) ; i += 2 )
+		for ( unsigned int i=0 ; i<(m_timeSegments_IBI.size()) ; i += 2 )
 		{
-
-			results_EKG_Picard_2_segmented.push_back(calculate_EKG_Picard_2( timeSegments[i] , timeSegments[i+1]) );
+			if (m_time_IBI_index[i])
+				results_EKG_Picard_2_segmented.push_back(calculate_EKG_Picard_2(m_timeSegments_IBI[i], m_timeSegments_IBI[i + 1]));
+			else
+				results_EKG_Picard_2_segmented.push_back(-99.0);
 		}
 
 		if ( m_print_to_txt_enabled )
 		{
 			std::stringstream ss;
-			ss << "Segments_(" << m_seconds_between_segments << "_" << (timeSegments.size()/2) << ")_";
+			ss << "Segments_(" << m_seconds_between_segments << "_" << (m_timeSegments_IBI.size()/2) << ")_";
 			ss << "EKG_Picard_2.txt" ;
 			string toBeReplacedWith = ss.str();
 
@@ -1143,24 +1171,23 @@ void affect_sensing_module::set_Column_Numbers()
 			m_stress_results->m_EKG_Picard_2.push_back(results_EKG_Picard_2_segmented[i]);
 
 		results_EKG_Picard_2_segmented.clear();
-		timeSegments.clear();
 	}
 
 	void affect_sensing_module::calculate_EKG_max()
 	{
-		vector< int > timeSegments = segmentTime( m_seconds_between_segments );
-
 		vector<double> results_EKG_Max_segmented ;
-		for ( unsigned int i=0 ; i<(timeSegments.size()) ; i += 2 )
+		for ( unsigned int i=0 ; i<(m_timeSegments_IBI.size()) ; i += 2 )
 		{
-
-			results_EKG_Max_segmented.push_back(calculate_EKG_max( timeSegments[i] , timeSegments[i+1]) );
+			if (m_time_IBI_index[i])
+				results_EKG_Max_segmented.push_back(calculate_EKG_max(m_timeSegments_IBI[i], m_timeSegments_IBI[i + 1]));
+			else
+				results_EKG_Max_segmented.push_back(-99.0);
 		}
 
 		if ( m_print_to_txt_enabled )
 		{
 			std::stringstream ss;
-			ss << "Segments_(" << m_seconds_between_segments << "_" << (timeSegments.size()/2) << ")_";
+			ss << "Segments_(" << m_seconds_between_segments << "_" << (m_timeSegments_IBI.size()/2) << ")_";
 			ss << "EKG_Max.txt" ;
 			string toBeReplacedWith = ss.str();
 
@@ -1182,24 +1209,23 @@ void affect_sensing_module::set_Column_Numbers()
 			m_stress_results->m_EKG_max.push_back(results_EKG_Max_segmented[i]);
 
 		results_EKG_Max_segmented.clear();
-		timeSegments.clear();
 	}
 
 	void affect_sensing_module::calculate_EKG_kurtosis()
 	{
-		vector< int > timeSegments = segmentTime( m_seconds_between_segments );
-
 		vector<double> results_EKG_Kurtosis_segmented ;
-		for ( unsigned int i=0 ; i<(timeSegments.size()) ; i += 2 )
+		for (unsigned int i = 0; i < (m_timeSegments_IBI.size()); i += 2)
 		{
-
-			results_EKG_Kurtosis_segmented.push_back(calculate_EKG_kurtosis( timeSegments[i] , timeSegments[i+1]) );
+			if (m_time_IBI_index[i])
+				results_EKG_Kurtosis_segmented.push_back(calculate_EKG_kurtosis(m_timeSegments_IBI[i], m_timeSegments_IBI[i + 1]));
+			else
+				results_EKG_Kurtosis_segmented.push_back(-99.0);
 		}
 
 		if ( m_print_to_txt_enabled )
 		{
 			std::stringstream ss;
-			ss << "Segments_(" << m_seconds_between_segments << "_" << (timeSegments.size()/2) << ")_";
+			ss << "Segments_(" << m_seconds_between_segments << "_" << (m_timeSegments_IBI.size()/2) << ")_";
 			ss << "EKG_Kurtosis.txt" ;
 			string toBeReplacedWith = ss.str();
 
@@ -1221,15 +1247,11 @@ void affect_sensing_module::set_Column_Numbers()
 			m_stress_results->m_EKG_Kurtosis.push_back(results_EKG_Kurtosis_segmented[i]);
 
 		results_EKG_Kurtosis_segmented.clear();
-		timeSegments.clear();
 	}
 
-//////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////////////////////////////////////////
-/*							private functions							*/
-//////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////////////////////////////////////////
-
+	//////////////////////////////////////////////////////////////////////////
+	/*							private functions							*/
+	//////////////////////////////////////////////////////////////////////////
 
 	void affect_sensing_module::load_file( std::string fileName )
 {
@@ -1268,7 +1290,8 @@ void affect_sensing_module::set_Column_Numbers()
 			istringstream iss(line);
 			
 			iss >> val ;
-			m_file->time.push_back( ::atof(val.c_str()) );	// TimeStamp Value
+			m_file->time_GSR.push_back( ::atof( val.c_str() ) );	// TimeStamp Value
+			m_file->time_IBI.push_back( ::atof( val.c_str() ) );	// TimeStamp Value
 
 			iss >> val ;
 			temp.push_back(::atof(val.c_str()));	// Skin_Cond Value
@@ -1323,7 +1346,8 @@ void affect_sensing_module::set_Column_Numbers()
 			{
 				vector<double> vals = tokenize_string(line);
 
-				m_file->time.push_back( vals[0] );
+				m_file->time_GSR.push_back( vals[0] );
+				m_file->time_IBI.push_back( vals[0] );
 
 				vector<double> temp;
 				temp.push_back(vals[4]);
@@ -1374,7 +1398,8 @@ void affect_sensing_module::set_Column_Numbers()
 			{
 				vector<double> vals = tokenize_string(line);
 
-				m_file->time.push_back( vals[0] );
+				m_file->time_GSR.push_back( vals[0] );
+				m_file->time_IBI.push_back( vals[0] );
 
 				vector<double> temp;
 				temp.push_back(vals[4]);
@@ -1425,7 +1450,8 @@ void affect_sensing_module::set_Column_Numbers()
 				{
 					vector<double> vals = tokenize_string(line);
 
-					m_file->time.push_back( vals[0] );
+					m_file->time_GSR.push_back( vals[0] );
+					m_file->time_IBI.push_back( vals[0] );
 
 					vector<double> temp;
 					//temp.push_back(vals[4]);
@@ -1478,14 +1504,11 @@ void affect_sensing_module::set_Column_Numbers()
 				{
 					vector<double> vals = tokenize_string(line);
 
-					m_file->time.push_back( vals[0] );
+					m_file->time_GSR.push_back( vals[0] );
+					m_file->time_IBI.push_back( vals[0] );
 
-					vector<double> temp;
-
-					temp.push_back(vals[1]);
-					temp.push_back(vals[2]);
-
-					m_file->data.push_back(temp);
+					m_file->GSR_data.push_back(vals[1]);
+					m_file->IBI_data.push_back(vals[2]);
 
 				}
 				counter ++ ;
@@ -1495,34 +1518,117 @@ void affect_sensing_module::set_Column_Numbers()
 		ifs.close();
 	}
 
-	vector<int> affect_sensing_module::segmentTime( int seconds )
+	void affect_sensing_module::segmentTime_GSR( int seconds )
 {
-	vector<int> out;
-	
 	if( seconds == 0 )
 	{
-		out.push_back(0);
-		out.push_back(m_file->time.size()-1) ;
+		m_timeSegments_GSR.push_back(0);
+		m_timeSegments_GSR.push_back(m_file->time_GSR.size()-1) ;
+
+		m_time_GSR_index.push_back(1);
+		m_time_GSR_index.push_back(1);
 	}
 	else
 	{
-		int index = 0 ;
-		out.push_back(0);
-		for ( unsigned int i=0  ; i<m_file->time.size() ; i++ )
+		int index = 0;
+		m_timeSegments_GSR.push_back(0);
+		for (unsigned int i = 0; i<m_file->time_GSR.size(); i++)
 		{
-			if ( ((int)((int)m_file->time[i] / seconds)) > index )
+			if (((int)(m_file->time_GSR[i] / seconds)) > index)
 			{
-				out.push_back((int)(i-1));
-				out.push_back((int)i);
-				index ++;
+				m_timeSegments_GSR.push_back((int)(i - 1));
+				m_timeSegments_GSR.push_back((int)i);
+				index++;
 			}
 		}
-		out.push_back(m_file->time.size()-1) ;
+		m_timeSegments_GSR.push_back(m_file->time_GSR.size() - 1);
+	
+		//if (m_timeSegments_GSR[m_timeSegments_GSR.size() - 1] - m_timeSegments_GSR[m_timeSegments_GSR.size() - 2] < 10)
+		//{
+		//	m_timeSegments_GSR[m_timeSegments_GSR.size() - 3] = m_timeSegments_GSR[m_timeSegments_GSR.size() - 1];
+		//	m_timeSegments_GSR.erase(m_timeSegments_GSR.end() - 2, m_timeSegments_GSR.end());
+		//}
+
+		for (unsigned int i = 0; i < m_timeSegments_GSR.size(); i += 2)
+		{
+			if (m_timeSegments_GSR[i+1] - m_timeSegments_GSR[i] < 2)
+			{
+				m_time_GSR_index.push_back(0);
+				m_time_GSR_index.push_back(0);
+			}
+			else
+			{
+				m_time_GSR_index.push_back(1);
+				m_time_GSR_index.push_back(1);
+			}
+		}
+	}
+}
+
+	void affect_sensing_module::segmentTime_IBI( int seconds )
+	{
+
+		if ( seconds == 0 )
+		{
+			m_timeSegments_IBI.push_back( 0 );
+			m_timeSegments_IBI.push_back( m_file->time_IBI.size() - 1 ) ;
+
+			m_time_IBI_index.push_back(1);
+			m_time_IBI_index.push_back(1);
+		}
+		else
+		{
+			int index = 0 ;
+			m_timeSegments_IBI.push_back( 0 );
+			for ( unsigned int i = 0 ; i<m_file->time_IBI.size() ; i++ )
+			{
+
+				if (((int)(m_file->time_IBI[i] / seconds)) > index)
+				{
+					m_timeSegments_IBI.push_back((int)(i - 1));
+					m_timeSegments_IBI.push_back((int)i);
+					index++;
+				}
+
+				//if ( ( (int) ( (int) m_file->time_IBI[i] / seconds ) ) > index )
+				//{
+				//	if (i - m_timeSegments_IBI[m_timeSegments_IBI.size() - 1] >= 5)
+				//	{
+				//		m_timeSegments_IBI.push_back((int)(i - 1));
+				//		m_timeSegments_IBI.push_back((int)i);
+				//	}
+				//	index = ((int)((int)m_file->time_IBI[i] / seconds));
+				//	index++;
+				//}
+			}
+			m_timeSegments_IBI.push_back( m_file->time_IBI.size() - 1 ) ;
+
+			for (unsigned int i = 0; i < m_timeSegments_IBI.size(); i += 2)
+			{
+				if (m_timeSegments_IBI[i + 1] - m_timeSegments_IBI[i] < 2)
+				{
+					m_time_IBI_index.push_back(0);
+					m_time_IBI_index.push_back(0);
+				}
+				else
+				{
+					m_time_IBI_index.push_back(1);
+					m_time_IBI_index.push_back(1);
+				}
+			}
+
+
+			//if (m_timeSegments_IBI.size() > 3)
+			//{
+			//	if (m_timeSegments_IBI[m_timeSegments_IBI.size() - 1] - m_timeSegments_IBI[m_timeSegments_IBI.size() - 2] < 10)
+			//	{
+			//		m_timeSegments_IBI[m_timeSegments_IBI.size() - 3] = m_timeSegments_IBI[m_timeSegments_IBI.size() - 1];
+			//		m_timeSegments_IBI.erase(m_timeSegments_IBI.end() - 2, m_timeSegments_IBI.end());
+			//	}
+			//}
+		}
 	}
 
-	return out;
-}
-	
 	vector<string> affect_sensing_module::tokenize_path( std::string path, const char delimiter)
 {
 	vector<string> toks;
@@ -1621,10 +1727,12 @@ void affect_sensing_module::set_Column_Numbers()
 	int counter = 0 ;
 	for ( unsigned int i=start ; i<stop ; i++ )
 	{
-		sum += m_file->data[i][skinCond_ColNr];
+		sum += m_file->GSR_data[i];
 		counter ++ ;
 	}
 	
+	if (counter == 0)
+		return 0.;
 	return (sum /= (double)counter) ;
 }
 	
@@ -1634,18 +1742,22 @@ void affect_sensing_module::set_Column_Numbers()
 	int counter = 0 ;
 	for ( unsigned int i=start ; i<stop ; i++ )
 	{
-		avg += m_file->data[i][skinCond_ColNr];
+		avg += m_file->GSR_data[i];
 		counter ++ ;
 	}
 
-	avg /= (double)counter ;
+	if ( counter != 0 )
+		avg /= (double)counter ;
+
 
 	double sum = 0. ;
 	for ( unsigned int i=start ; i<stop ; i++ )
 	{
-		sum += (m_file->data[i][skinCond_ColNr] - avg)*(m_file->data[i][skinCond_ColNr] - avg);
+		sum += (m_file->GSR_data[i] - avg)*(m_file->GSR_data[i] - avg);
 	}
 
+	if (counter == 0)
+		return 0.;
 	return sqrt( sum/counter );
 
 }
@@ -1657,14 +1769,16 @@ void affect_sensing_module::set_Column_Numbers()
 
 	for ( unsigned int i=start + 1 ; i<stop ; i++ )
 	{
-		if ( m_file->data[i][skinCond_ColNr] != m_file->data[i-1][skinCond_ColNr] )
+		if (m_file->GSR_data[i] != m_file->GSR_data[i-1])
 		{
-			sum += pow( (m_file->data[i][skinCond_ColNr] - m_file->data[i-1][skinCond_ColNr]) / (m_file->time[i] - m_file->time[i-1]) , 2 );
+			sum += pow((m_file->GSR_data[i] - m_file->GSR_data[i-1]) / (m_file->time_GSR[i] - m_file->time_GSR[i - 1]), 2);
 			counter ++;
 		}
 	}
 
-	 return sqrt( sum / (double)counter );
+	if (counter == 0.)
+		return 0.;
+	return sqrt( sum / (double)counter );
 }
 	
 	double affect_sensing_module::calculate_GSR_1stDerivative_Average( int start, int stop )
@@ -1674,13 +1788,15 @@ void affect_sensing_module::set_Column_Numbers()
 
 	for ( unsigned int i= start ; i<stop-1 ; i++ )
 	{
-		if ( m_file->data[i+1][skinCond_ColNr] - m_file->data[i][skinCond_ColNr] != 0. )
+		if (m_file->GSR_data[i + 1] - m_file->GSR_data[i] != 0.)
 		{
-			s1 += ( m_file->data[i+1][skinCond_ColNr] - m_file->data[i][skinCond_ColNr] ) / (m_file->time[i+1] - m_file->time[i]) ;
+			s1 += (m_file->GSR_data[i + 1] - m_file->GSR_data[i]) / (m_file->time_GSR[i + 1] - m_file->time_GSR[i]);
 			counter ++;
 		}
 	}
 
+	if (counter == 0.)
+		return 0.;
 	return s1 / (double)counter;
 }
 	
@@ -1765,14 +1881,14 @@ void affect_sensing_module::set_Column_Numbers()
 	double maxV = -10000.0 ;
 	double minV =  10000.0 ;
 
-	for ( unsigned int ii=0 ; ii<m_file->data.size() ; ii++ )
+	for (unsigned int i = 0; i<m_file->GSR_data.size(); i++)
 	{
-		if ( m_file->time[ii] >= start && m_file->time[ii] <= stop )
+		if ( m_file->time_GSR[i] >= start && m_file->time_GSR[i] <= stop )
 		{
-			if ( m_file->data[ii][skinCond_ColNr] > maxV )
-				maxV = m_file->data[ii][skinCond_ColNr] ;
-			if ( m_file->data[ii][skinCond_ColNr] < minV )
-				minV = m_file->data[ii][skinCond_ColNr] ;
+			if ( m_file->GSR_data[i] > maxV )
+				maxV = m_file->GSR_data[i];
+			if (m_file->GSR_data[i] < minV)
+				minV = m_file->GSR_data[i];
 		}
 	}
 
@@ -1782,6 +1898,16 @@ void affect_sensing_module::set_Column_Numbers()
 	vector<double> affect_sensing_module::calculate_GSR_SCR_Features( int start, int stop )
 {
 	vector<double> bartlettW , returnVal ;
+	
+	if (stop - start < 2)
+	{
+		returnVal.push_back(0.);
+		returnVal.push_back(0.);
+		returnVal.push_back(0.);
+
+		return returnVal;
+	}
+	
 	bartlettW.resize(255);
 
 	double i1 = 2.0 / (double)bartlettW.size() ;
@@ -1794,15 +1920,15 @@ void affect_sensing_module::set_Column_Numbers()
 
 	vector<vector<double>> gsrDerivatives;
 	vector<double> d1 ;
-	d1.push_back(m_file->time[0]);	//gsrDerivatives[0][0] = mainForm.manipulatedProcompData[0][0];
+	d1.push_back(m_file->time_GSR[0]);	//gsrDerivatives[0][0] = mainForm.manipulatedProcompData[0][0];
 	d1.push_back(0.);				//gsrDerivatives[0][1] = 0;
 	gsrDerivatives.push_back(d1);
 	for ( unsigned int i=start+1 ; i<stop ; i++ )
 	{
 		d1.clear();
-		d1.push_back( m_file->time[i] );
-		d1.push_back( (m_file->data[i][skinCond_ColNr] - m_file->data[i-1][skinCond_ColNr]) 
-					/ (m_file->time[i] - m_file->time[i-1]) );
+		d1.push_back( m_file->time_GSR[i] );
+		d1.push_back( (m_file->GSR_data[i] - m_file->GSR_data[i-1]) 
+					/ (m_file->time_GSR[i] - m_file->time_GSR[i-1]) );
 		gsrDerivatives.push_back(d1);
 	}
 
@@ -1868,9 +1994,12 @@ void affect_sensing_module::set_Column_Numbers()
 		meanStartlesDuration += (scrStartsAndStops[i][1] - scrStartsAndStops[i][0]);
 	}
 
-	meanStartlesAmplitude /= maxGSRvaluesForSCRs.size();
-	meanStartlesDuration /= maxGSRvaluesForSCRs.size();
-
+	if ( maxGSRvaluesForSCRs.size() != 0 )
+	{
+		meanStartlesAmplitude /= maxGSRvaluesForSCRs.size();
+		meanStartlesDuration /= maxGSRvaluesForSCRs.size();
+	}
+	
 	double trialDuration = (double) (stop - start) / 255.0 ;
 	double NR = (int) (100.0 * ((double)maxGSRvaluesForSCRs.size() / trialDuration));
 	returnVal.push_back((double)NR);
@@ -1892,8 +2021,6 @@ void affect_sensing_module::set_Column_Numbers()
 
 	maxGSRvaluesForSCRs.clear();
 
-	// return
-
 	return returnVal ;
 }
 	
@@ -1902,9 +2029,9 @@ void affect_sensing_module::set_Column_Numbers()
 	double finalSum = 0. ;
 	int counter = 0;
 	
-	for ( unsigned int i = start ; i<(stop-1) && i<(m_file->data.size()-1) ; i++ )
+	for (unsigned int i = start; i<(stop - 1) && i<(m_file->GSR_data.size() - 1); i++)
 	{
-		double sub = m_file->data[i+1][skinCond_ColNr] - m_file->data[i][skinCond_ColNr];
+		double sub = m_file->GSR_data[i+1] - m_file->GSR_data[i];
 
 		if( sub != 0. ) 
 		{
@@ -1913,8 +2040,9 @@ void affect_sensing_module::set_Column_Numbers()
 		}
 	}
 
+	if (counter < 2)
+		return 0.;
 	return (double)( finalSum / ((double)counter - 1.0 ));
-
 }
 	
 	double affect_sensing_module::calculate_GSR_Picard_2( int start, int stop )
@@ -1922,20 +2050,25 @@ void affect_sensing_module::set_Column_Numbers()
 	double gsrMean = 0.;
 	int counter = 0;
 
-	for ( unsigned int i=start ; i<stop && i<m_file->data.size() ; i++)
+	for (unsigned int i = start; i<stop && i<m_file->GSR_data.size(); i++)
 	{
-		gsrMean += m_file->data[i][skinCond_ColNr] ;
+		gsrMean += m_file->GSR_data[i];
 		counter ++;
 	}
 
+	if (counter == 0)
+	{
+		return 0.;
+	}
+	
 	gsrMean /= ((double)counter) ;
 
 	double s1 = 0.;
 	counter = 0;
-
-	for ( unsigned int i = start ; i<stop && i<m_file->data.size() ; i++ )
+	 
+	for (unsigned int i = start; i<stop && i<m_file->GSR_data.size(); i++)
 	{
-		s1 += ( m_file->data[i][skinCond_ColNr] - gsrMean )*( m_file->data[i][skinCond_ColNr] - gsrMean );
+		s1 += (m_file->GSR_data[i] - gsrMean)*(m_file->GSR_data[i] - gsrMean);
 		counter ++;
 	}
 
@@ -1943,10 +2076,10 @@ void affect_sensing_module::set_Column_Numbers()
 
 	double finalSum = 0.;
 	counter = 0;
-	for ( unsigned int i = start ; i<(stop-1) && i<(m_file->data.size()-1) ; i++ )
+	for (unsigned int i = start; i<(stop - 1) && i<(m_file->GSR_data.size() - 1); i++)
 	{
-		double dn1 = ( m_file->data[i][skinCond_ColNr] - gsrMean ) / gsrSD ;
-		double dn2 = ( m_file->data[i+1][skinCond_ColNr] - gsrMean ) / gsrSD ;
+		double dn1 = (m_file->GSR_data[i] - gsrMean) / gsrSD;
+		double dn2 = (m_file->GSR_data[i+1] - gsrMean) / gsrSD; 
 
 		if ( dn2 - dn1 != 0.)
 		{
@@ -1963,10 +2096,15 @@ void affect_sensing_module::set_Column_Numbers()
 	double gsrMean = 0.;
 	int counter = 0;
 
-	for ( unsigned int i=start ; i<stop && i<m_file->data.size() ; i++)
+	for (unsigned int i = start; i<stop && i<m_file->GSR_data.size(); i++)
 	{
-		gsrMean += m_file->data[i][skinCond_ColNr] ;
+		gsrMean += m_file->GSR_data[i];
 		counter ++;
+	}
+
+	if (counter == 0)
+	{
+		return 0.;
 	}
 
 	gsrMean /= ((double)counter) ;
@@ -1974,25 +2112,24 @@ void affect_sensing_module::set_Column_Numbers()
 	double s1 = 0.;
 	counter = 0;
 
-	for ( unsigned int i = start ; i< stop && i<m_file->data.size() ; i++ )
+	for ( unsigned int i = start ; i< stop && i<m_file->GSR_data.size() ; i++ )
 	{
-		s1 += ( m_file->data[i][skinCond_ColNr] - gsrMean )*( m_file->data[i][skinCond_ColNr] - gsrMean );
+		s1 += (m_file->GSR_data[i] - gsrMean)*(m_file->GSR_data[i] - gsrMean);
 		counter ++;
 	}
 
 	double gsrSD = std::sqrt( ((double)(1. / (double)counter )) * s1 );
 
 	vector< double > diffElements ;
-	diffElements.push_back( (m_file->data[start][skinCond_ColNr] - gsrMean) / gsrSD);
+	diffElements.push_back((m_file->GSR_data[start] - gsrMean) / gsrSD);
 
-	for ( unsigned int i = start ; i<(stop-1) && i<(m_file->data.size()-1) ; i++ )
+	for (unsigned int i = start; i<(stop - 1) && i<(m_file->GSR_data.size() - 1); i++)
 	{
-		double dn1 = (m_file->data[i][skinCond_ColNr] - gsrMean) / gsrSD ;
-		double dn2 = (m_file->data[i+1][skinCond_ColNr] - gsrMean) / gsrSD ;
-
-		if ( dn2 - dn1 != 0. )
+		double dn1 = (m_file->GSR_data[i] - gsrMean) / gsrSD;
+		double dn2 = (m_file->GSR_data[i+1] - gsrMean) / gsrSD;
+		
+		if (dn2 - dn1 != 0.)
 			diffElements.push_back(dn2);
-
 	}
 
 	double finalSum = 0.;
@@ -2013,17 +2150,22 @@ void affect_sensing_module::set_Column_Numbers()
 
 	vector< vector < double > > gsrSubSamled ;
 	int segSize = (int)(stop - start);
-	int vecSampledSize = int((stop - start)/16.);
+	int vecSampledSize = int(segSize /4.);
 	gsrSubSamled.resize( vecSampledSize );
 
-	for ( unsigned int i=0 ; i<vecSampledSize && (i*16)<segSize ; i++ )
+	if (vecSampledSize < 1)
 	{
-		gsrSubSamled[i].push_back(m_file->time[i*16]);
-		gsrSubSamled[i].push_back(m_file->data[i*16][skinCond_ColNr]);
+		return 0.;
+	}
+
+	for ( unsigned int i=0 ; i<vecSampledSize && (i*4)<segSize ; i++ )
+	{
+		gsrSubSamled[i].push_back(m_file->time_GSR[i*4]);
+		gsrSubSamled[i].push_back(m_file->GSR_data[i*4]);
 	}
 
 	vector< double > hanningW ;
-	hanningW.resize( 3 * 16 );
+	hanningW.resize( 3 * 4 );
 
 	for ( unsigned int i=0 ; i< hanningW.size() ; i++ )
 	{
@@ -2073,16 +2215,23 @@ void affect_sensing_module::set_Column_Numbers()
 
 	vector<vector<double>> gsrDerivatives;
 	vector<double> d1 ;
-	d1.push_back(m_file->time[0]);	//gsrDerivatives[0][0] = mainForm.manipulatedProcompData[0][0];
+	d1.push_back(m_file->time_GSR[0]);	//gsrDerivatives[0][0] = mainForm.manipulatedProcompData[0][0];
 	d1.push_back(0.);				//gsrDerivatives[0][1] = 0;
 	gsrDerivatives.push_back(d1);
 	for ( unsigned int i=start+1 ; i<stop ; i++ )
 	{
 		d1.clear();
-		d1.push_back( m_file->time[i] );
-		d1.push_back( (m_file->data[i][skinCond_ColNr] - m_file->data[i-1][skinCond_ColNr]) 
-			/ (m_file->time[i] - m_file->time[i-1]) );
+		d1.push_back( m_file->time_GSR[i] );
+		d1.push_back((m_file->GSR_data[i] - m_file->GSR_data[i-1])
+			/ (m_file->time_GSR[i] - m_file->time_GSR[i - 1]));
 		gsrDerivatives.push_back(d1);
+	}
+
+	if (gsrDerivatives.size() < 2)
+	{
+		for (unsigned int i = 0; i < 10; i++)
+			returnVal.push_back(0.);
+		return returnVal;
 	}
 
 	vector<double> convolutionResult = convolute(gsrDerivatives, 1, bartlettW) ;
@@ -2244,13 +2393,13 @@ void affect_sensing_module::set_Column_Numbers()
 
 	double gsrMin = 0. ,gsrMax = 0. ;
 
-	for ( unsigned int i=start ; i<stop ; i++ )
+	for (unsigned int i = start; i<stop; i++)
 	{
-		if ( m_file->data[i][skinCond_ColNr] < gsrMin )
-			gsrMin = m_file->data[i][skinCond_ColNr] ;
-		
-		if ( m_file->data[i][skinCond_ColNr] > gsrMax )
-			gsrMax = m_file->data[i][skinCond_ColNr] ;
+		if (m_file->GSR_data[i] < gsrMin)
+			gsrMin = m_file->GSR_data[i];
+
+		if (m_file->GSR_data[i] > gsrMax)
+			gsrMax = m_file->GSR_data[i];
 	}
 
 	retVal.push_back(gsrMin);
@@ -2264,20 +2413,27 @@ void affect_sensing_module::set_Column_Numbers()
 {
 	vector<double> retVal;
 
+	if ( stop - start < 1 )
+	{
+		retVal.push_back(0.);
+		retVal.push_back(0.);
+		return retVal;
+	}
+
 	double gsrMean = 0. ;
 
 	for ( unsigned int i=start ; i<stop ; i++ )
-		gsrMean += m_file->data[i][skinCond_ColNr];
+		gsrMean += m_file->GSR_data[i];
 
 	gsrMean /= (stop-start);
 
 	double sum1 = 0. , sum2 = 0. , sum3 = 0. ;
 
-	for ( unsigned int i=start ; i<stop ; i++ )
+	for (unsigned int i = start; i<stop; i++)
 	{
-		sum1 += pow( m_file->data[i][skinCond_ColNr] - gsrMean , 4 );
-		sum2 += pow( m_file->data[i][skinCond_ColNr] - gsrMean , 2 );
-		sum3 += pow( m_file->data[i][skinCond_ColNr] - gsrMean , 3 );
+		sum1 += pow(m_file->GSR_data[i] - gsrMean, 4);
+		sum2 += pow(m_file->GSR_data[i] - gsrMean, 2);
+		sum3 += pow(m_file->GSR_data[i] - gsrMean, 3);
 	}
 
 	double kurtosis = ( (sum1 / (double)(stop - start)) / pow( (sum2 / (double)(stop - start) ), 2) ) - 3.0 ;
@@ -2296,7 +2452,7 @@ void affect_sensing_module::set_Column_Numbers()
 
 	for ( unsigned int i=start ; i<stop-1 ; i++ )
 	{
-		double diff = m_file->data[i+1][skinCond_ColNr] - m_file->data[i][skinCond_ColNr];
+		double diff = m_file->GSR_data[i + 1] - m_file->GSR_data[i];
 		if ( diff != 0.0 )
 		{
 			if ( diff < 0.0 )
@@ -2305,6 +2461,8 @@ void affect_sensing_module::set_Column_Numbers()
 		}
 	}
 
+	if (counter == 0)
+		return 0.;
 	return ( negativeSamples/(double)counter) ;
 }
 	
@@ -2323,16 +2481,24 @@ void affect_sensing_module::set_Column_Numbers()
 
 	vector<vector<double>> gsrDerivatives;
 	vector<double> d1 ;
-	d1.push_back(m_file->time[0]);	//gsrDerivatives[0][0] = mainForm.manipulatedProcompData[0][0];
+	d1.push_back(m_file->time_GSR[0]);	//gsrDerivatives[0][0] = mainForm.manipulatedProcompData[0][0];
 	d1.push_back(0.);				//gsrDerivatives[0][1] = 0;
 	gsrDerivatives.push_back(d1);
 	for ( unsigned int i=start+1 ; i<stop ; i++ )
 	{
 		d1.clear();
-		d1.push_back( m_file->time[i] );
-		d1.push_back( (m_file->data[i][skinCond_ColNr] - m_file->data[i-1][skinCond_ColNr]) 
-			/ (m_file->time[i] - m_file->time[i-1]) );
+		d1.push_back( m_file->time_GSR[i] );
+		d1.push_back((m_file->GSR_data[i] - m_file->GSR_data[i-1])
+			/ (m_file->time_GSR[i] - m_file->time_GSR[i - 1]));
 		gsrDerivatives.push_back(d1);
+	}
+
+	if (gsrDerivatives.size() < 2)
+	{
+		returnVal.push_back(0.);
+		returnVal.push_back(0.);
+		returnVal.push_back(0.);
+		return returnVal;
 	}
 
 	vector<double> convolutionResult = convolute(gsrDerivatives, 1, bartlettW) ;
@@ -2385,18 +2551,22 @@ void affect_sensing_module::set_Column_Numbers()
 
 	vector<vector<double>> gsrDerivatives;
 	vector<double> d1 ;
-	d1.push_back(m_file->time[0]);	//gsrDerivatives[0][0] = mainForm.manipulatedProcompData[0][0];
+	d1.push_back(m_file->time_GSR[0]);	//gsrDerivatives[0][0] = mainForm.manipulatedProcompData[0][0];
 	d1.push_back(0.);				//gsrDerivatives[0][1] = 0;
 	gsrDerivatives.push_back(d1);
 	for ( unsigned int i=start+1 ; i<stop ; i++ )
 	{
 		d1.clear();
-		d1.push_back( m_file->time[i] );
-		d1.push_back( (m_file->data[i][skinCond_ColNr] - m_file->data[i-1][skinCond_ColNr]) 
-			/ (m_file->time[i] - m_file->time[i-1]) );
+		d1.push_back( m_file->time_GSR[i] );
+		d1.push_back((m_file->GSR_data[i] - m_file->GSR_data[i-1])
+			/ (m_file->time_GSR[i] - m_file->time_GSR[i - 1]));
 		gsrDerivatives.push_back(d1);
 	}
 
+	if (gsrDerivatives.size() < 2)
+	{
+		return 0.;
+	}
 
 	vector<double> convolutionResult = convolute(gsrDerivatives, 1, bartlettW);
 
@@ -2493,8 +2663,8 @@ void affect_sensing_module::set_Column_Numbers()
 
 	for ( unsigned int i=start ; i<stop ; i++ )
 	{
-		double a = m_file->data[i][ekgLF_ColNr] ;
-		double b = m_file->data[i][ekgHF_ColNr] ;
+		double a = m_file->IBI_data[i] ;
+		double b = m_file->IBI_data[i] ;
 		if ( b != 0. )
 		{
 			sum += (double)( a/b ) ;
@@ -2502,6 +2672,8 @@ void affect_sensing_module::set_Column_Numbers()
 		}
 	}
 
+	if (counter == 0)
+		return 0.;
 	return (double)( sum / (double)counter ) ;
 }
 	
@@ -2510,9 +2682,9 @@ void affect_sensing_module::set_Column_Numbers()
 	double sxi2 = 0.;
 	int counter = 0;
 
-	for (unsigned int i=0 ; i<m_file->data.size() -1 ; i++ )
+	for ( unsigned int i = 0 ; i<m_file->IBI_data.size () - 1 ; i++ )
 	{
-		double sd_i3 = ((double)m_file->data[i + 1][ekgIBI_ColNr]) - ((double)m_file->data[i][ekgIBI_ColNr]) ;
+		double sd_i3 = ( (double) m_file->IBI_data[i + 1] ) - ( (double) m_file->IBI_data[i] ) ;
 		if ( sd_i3 != 0. )
 		{
 			sxi2 += sd_i3 * sd_i3;
@@ -2520,23 +2692,33 @@ void affect_sensing_module::set_Column_Numbers()
 		}
 	}
 
-	double val = sqrt( (1. / (double)counter) * sxi2 );
-	return val ;
+	if (counter == 0)
+		return 0.;
+	return sqrt((1. / (double)counter) * sxi2);
 }
 	
 	vector<double> affect_sensing_module::calculate_EKG_SD1_SD2( int start , int stop )
 {
+	vector<double> retVal;
 	vector<vector<double>> poinCarePlot , poinCarePlot_L ;
-	for ( unsigned int i=0 ; i<m_file->data.size() -1 ; i++ )
+
+	for ( unsigned int i = 0 ; i<m_file->IBI_data.size () - 1 ; i++ )
 	{
-		if ( m_file->data[i][ekgIBI_ColNr] != 0. &&
-			 m_file->data[i][ekgIBI_ColNr] != m_file->data[i+1][ekgIBI_ColNr] )
+		if ( m_file->IBI_data[i] != 0. &&
+			 m_file->IBI_data[i] != m_file->IBI_data[i+1] )
 		{
 			vector<double> temp ;
-			temp.push_back(m_file->data[i][ekgIBI_ColNr] / 1000.0 );
-			temp.push_back(m_file->data[i+1][ekgIBI_ColNr] / 1000.0 );
+			temp.push_back ( m_file->IBI_data[i] / 1000.0 );
+			temp.push_back ( m_file->IBI_data[i+1] / 1000.0 );
 			poinCarePlot.push_back(temp);
 		}
+	}
+
+	if (poinCarePlot.size() == 0)
+	{
+		retVal.push_back(0.);
+		retVal.push_back(0.);
+		return retVal;
 	}
 
 	for ( unsigned int i=0 ; i<poinCarePlot.size() ; i++ )
@@ -2579,12 +2761,10 @@ void affect_sensing_module::set_Column_Numbers()
 	poinCarePlot.clear();
 	poinCarePlot_L.clear();
 
-
 	// return
-	vector<double> ret;
-	ret.push_back(sd1);
-	ret.push_back(sd2);
-	return ret ;
+	retVal.push_back(sd1);
+	retVal.push_back(sd2);
+	return retVal;
 
 }
 	
@@ -2593,42 +2773,49 @@ void affect_sensing_module::set_Column_Numbers()
 
 	vector< vector < double > > ekgSubSamled ;
 	int segSize = (int)(stop - start);
-	int vecSampledSize = int((stop - start)/16.);
-	ekgSubSamled.resize( vecSampledSize );
+	int vecSampledSize = int((stop - start)/4.);
 
-	for ( unsigned int i=0 ; i<vecSampledSize && (i*16)<segSize ; i++ )
+	
+	if (vecSampledSize < 1)
 	{
-		ekgSubSamled[i].push_back(m_file->time[i*16]);
-		ekgSubSamled[i].push_back(m_file->data[i*16][ekgIBI_ColNr]);
+		return 0.;
 	}
 
-	vector< double > hanningW ;
-	hanningW.resize( 3 * 16 );
+	ekgSubSamled.resize(vecSampledSize);
 
-	for ( unsigned int i=0 ; i< hanningW.size() ; i++ )
+	for (unsigned int i = 0; i < vecSampledSize && (i * 4) < segSize; i++)
 	{
-		double fff = (2. * M_PI * i) / ((double)hanningW.size() - 1. );
-		hanningW[i] = 0.5 * ( 1. - cos(fff));
+		ekgSubSamled[i].push_back(m_file->time_IBI[i * 4]);
+		ekgSubSamled[i].push_back(m_file->IBI_data[i * 4]);
 	}
 
-	vector< double > convolutionRes = convolute_2( ekgSubSamled, 1 , hanningW );
+	vector< double > hanningW;
+	hanningW.resize(3 * 4);
 
-	vector< vector < double > > convSig ;
-	convSig.resize( ekgSubSamled.size() );
-	for ( unsigned int i=0 ; i<convSig.size() ; i++ )
+	for (unsigned int i = 0; i < hanningW.size(); i++)
 	{
-		convSig[i].push_back( ekgSubSamled[i][0]);
-		convSig[i].push_back( convolutionRes[i] );
+		double fff = (2. * M_PI * i) / ((double)hanningW.size() - 1.);
+		hanningW[i] = 0.5 * (1. - cos(fff));
 	}
 
-	double returnVal = (convSig[vecSampledSize -1][1] - convSig[0][1]) / ( vecSampledSize -1 );
+	vector< double > convolutionRes = convolute_2(ekgSubSamled, 1, hanningW);
+
+	vector< vector < double > > convSig;
+	convSig.resize(ekgSubSamled.size());
+	for (unsigned int i = 0; i < convSig.size(); i++)
+	{
+		convSig[i].push_back(ekgSubSamled[i][0]);
+		convSig[i].push_back(convolutionRes[i]);
+	}
+
+	double returnVal = (convSig[vecSampledSize - 1][1] - convSig[0][1]) / (vecSampledSize - 1);
 
 	// release memory
-	for ( unsigned int i=0 ; i<ekgSubSamled.size() ; i++)
+	for (unsigned int i = 0; i < ekgSubSamled.size(); i++)
 		ekgSubSamled[i].clear();
 	ekgSubSamled.clear();
 
-	for ( unsigned int i=0 ; i<convSig.size() ; i++)
+	for (unsigned int i = 0; i < convSig.size(); i++)
 		convSig[i].clear();
 	convSig.clear();
 
@@ -2644,10 +2831,13 @@ void affect_sensing_module::set_Column_Numbers()
 	int counter = 0 ;
 	for ( unsigned int i=start ; i<stop ; i++ )
 	{
-		sum += m_file->data[i][ekgIBI_ColNr];
+		sum += m_file->IBI_data[i];
 		counter ++ ;
 	}
 	
+	if (counter == 0)
+		return 0.;
+
 	sum /= (double)counter;
 
 	return ( sum /= 1000.0 ) ;
@@ -2659,9 +2849,12 @@ void affect_sensing_module::set_Column_Numbers()
 		int counter = 0 ;
 		for ( unsigned int i=start ; i<stop ; i++ )
 		{
-			avg += m_file->data[i][ekgIBI_ColNr];
+			avg += m_file->IBI_data[i];
 			counter ++ ;
 		}
+
+		if (counter == 0)
+			return 0.;
 
 		avg /= (double)counter ;
 		avg /= 1000.0 ;
@@ -2669,7 +2862,7 @@ void affect_sensing_module::set_Column_Numbers()
 		double sum = 0. ;
 		for ( unsigned int i=start ; i<stop ; i++ )
 		{
-			sum += ((m_file->data[i][ekgIBI_ColNr]/1000.0) - avg)*((m_file->data[i][ekgIBI_ColNr]/1000.0) - avg);
+			sum += ( ( m_file->IBI_data[i] / 1000.0 ) - avg )*( ( m_file->IBI_data[i] / 1000.0 ) - avg );
 		}
 
 		return sqrt( sum/(double)counter );
@@ -2680,9 +2873,9 @@ void affect_sensing_module::set_Column_Numbers()
 		double finalSum = 0. ;
 		int counter = 0;
 
-		for ( unsigned int i = start ; i<(stop-1) && i<(m_file->data.size()-1) ; i++ )
+		for ( unsigned int i = start ; i<( stop - 1 ) && i<( m_file->IBI_data.size () - 1 ) ; i++ )
 		{
-			double sub = m_file->data[i+1][ekgIBI_ColNr] - m_file->data[i][ekgIBI_ColNr];
+			double sub = m_file->IBI_data[i+1] - m_file->IBI_data[i];
 
 			if( sub != 0. ) 
 			{
@@ -2690,6 +2883,9 @@ void affect_sensing_module::set_Column_Numbers()
 				counter++ ;
 			}
 		}
+
+		if (counter < 2)
+			return 0.;
 
 		return (double)( finalSum / ((double)counter - 1.0 ));
 	}
@@ -2699,20 +2895,22 @@ void affect_sensing_module::set_Column_Numbers()
 		double ibiMean = 0.;
 		int counter = 0;
 
-		for ( unsigned int i=start ; i<stop && i<m_file->data.size() ; i++)
+		for ( unsigned int i = start ; i<stop && i<m_file->IBI_data.size () ; i++ )
 		{
-			ibiMean += m_file->data[i][ekgIBI_ColNr] ;
+			ibiMean += m_file->IBI_data[i] ;
 			counter ++;
 		}
+		if (counter == 0)
+			return 0.;
 
 		ibiMean /= ((double)counter) ;
 
 		double s1 = 0.;
 		counter = 0;
 
-		for ( unsigned int i = start ; i<stop && i<m_file->data.size() ; i++ )
+		for ( unsigned int i = start ; i<stop && i<m_file->IBI_data.size () ; i++ )
 		{
-			s1 += ( m_file->data[i][ekgIBI_ColNr] - ibiMean )*( m_file->data[i][ekgIBI_ColNr] - ibiMean );
+			s1 += ( m_file->IBI_data[i] - ibiMean )*( m_file->IBI_data[i] - ibiMean );
 			counter ++;
 		}
 
@@ -2720,10 +2918,10 @@ void affect_sensing_module::set_Column_Numbers()
 
 		double finalSum = 0.;
 		counter = 0;
-		for ( unsigned int i = start ; i<(stop-1) && i<(m_file->data.size()-1) ; i++ )
+		for ( unsigned int i = start ; i<(stop-1) && i<(m_file->IBI_data.size()-1) ; i++ )
 		{
-			double dn1 = ( m_file->data[i][ekgIBI_ColNr] - ibiMean ) / ibiSD ;
-			double dn2 = ( m_file->data[i+1][ekgIBI_ColNr] - ibiMean ) / ibiSD ;
+			double dn1 = ( m_file->IBI_data[i] - ibiMean ) / ibiSD ;
+			double dn2 = ( m_file->IBI_data[i+1] - ibiMean ) / ibiSD ;
 
 			if ( dn2 - dn1 != 0.)
 			{
@@ -2741,9 +2939,9 @@ void affect_sensing_module::set_Column_Numbers()
 
 		for ( unsigned int i=start ; i<stop ; i++ )
 		{
-			if ( m_file->data[i][ekgIBI_ColNr] > ibiMax )
+			if ( m_file->IBI_data[i] > ibiMax )
 			{
-				ibiMax = m_file->data[i][ekgIBI_ColNr] ;
+				ibiMax = m_file->IBI_data[i] ;
 			}
 		}
 		return ibiMax / 1000. ;
@@ -2756,9 +2954,12 @@ void affect_sensing_module::set_Column_Numbers()
 
 		for ( unsigned int i=start ; i<stop ; i++ )
 		{
-			ibiMean += m_file->data[i][ekgIBI_ColNr];
+			ibiMean += m_file->IBI_data[i];
 			counter ++;
 		}
+
+		if (counter == 0)
+			return 0.;
 
 		ibiMean /= (double)counter;
 		ibiMean /= 1000.0;
@@ -2767,9 +2968,9 @@ void affect_sensing_module::set_Column_Numbers()
 
 		for ( unsigned int i=start ; i<stop ; i++ )
 		{
-			sum1 += pow( ( m_file->data[i][ekgIBI_ColNr] / 1000.0 ) - ibiMean , 4 );
-			sum2 += pow( ( m_file->data[i][ekgIBI_ColNr] / 1000.0 ) - ibiMean , 2 );
-			sum3 += pow( ( m_file->data[i][ekgIBI_ColNr] / 1000.0 ) - ibiMean , 3 );
+			sum1 += pow ( ( m_file->IBI_data[i] / 1000.0 ) - ibiMean, 4 );
+			sum2 += pow ( ( m_file->IBI_data[i] / 1000.0 ) - ibiMean, 2 );
+			//sum3 += pow ( ( m_file->IBI_data[i] / 1000.0 ) - ibiMean, 3 );
 		}
 
 		double kurtosis = ( (sum1 / (double)counter) / pow( (sum2 / (double)counter ), 2) ) - 3.0 ;

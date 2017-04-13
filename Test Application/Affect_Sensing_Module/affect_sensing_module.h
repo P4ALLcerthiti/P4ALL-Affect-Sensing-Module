@@ -17,12 +17,12 @@ public:
 	
 	~affect_sensing_module();
 
-	void	set_seconds_between_Intervals( int secs );
+	void	set_seconds_between_Intervals(int secs) { m_seconds_between_segments = secs ; };
 	void	set_fileName( std::string fileName_str );
-	std::string	get_fileName();
+	std::string	get_fileName() { return m_file->fileName ; };
 	void	reset_fileName( std::string fileName );
-	void	enable_print_txt();
-	void	enable_print_features();
+	void	enable_print_txt() { m_print_to_txt_enabled = true ; };
+	void	enable_print_features() { m_print_to_features_enabled = true; };
 
 	// GSR
 	void calculate_GSR_mean();
@@ -53,15 +53,26 @@ public:
 	void calculate_EKG_max();
 	void calculate_EKG_kurtosis();
 
-	void write_to_features_txt( std::string txt , std::string subName , int trialNum , std::vector<double> vec );
+	//void write_to_features_txt( std::string txt , std::string subName , int trialNum , std::vector<double> vec );
 
-	void normalize_feature( std::string featureName );
+	//void normalize_feature( std::string featureName );
 
 	results *m_stress_results ;
+	
+	void set_data_GSR( std::vector<double> vec ) { m_file->GSR_data = vec; };
+	void set_data_IBI( std::vector<double> vec ) { m_file->IBI_data = vec; };
+	void set_time_GSR( std::vector<double> vec ) { m_file->time_GSR = vec; };
+	void set_time_IBI( std::vector<double> vec ) { m_file->time_IBI = vec; };
+
+	void set_time_segments();
+
+	vector<int> get_GSR_index() { return m_time_GSR_index; };
+	vector<int> get_IBI_index() { return m_time_IBI_index;  };
 
 private:
-	txt_file *m_file ;
 	
+	txt_file *m_file;
+
 	int m_seconds_between_segments;
 	bool m_print_to_txt_enabled ;
 	bool m_print_to_features_enabled ;
@@ -72,13 +83,20 @@ private:
 	int ekgLF_ColNr ;
 	int ekgHF_ColNr ;
 
+	vector<int> m_timeSegments_GSR;
+	vector<int> m_timeSegments_IBI;
+	vector<int> m_time_GSR_index;
+	vector<int> m_time_IBI_index;
+	
+	void		segmentTime_GSR(int seconds);
+	void		segmentTime_IBI(int seconds);
+
 	void			load_file( std::string fileName );
 	void			load_file_2( std::string fileName );
 	void			load_file_ITI_2010( std::string fileName );
 	void			load_file_from_sensor( std::string fileName );
 	void			load_file_from_sensor_2( std::string fileName );
 	void			set_Column_Numbers();
-	vector<int>		segmentTime( int seconds );
 	vector<string>	tokenize_path( std::string path, const char delimiter);
 	vector<double>	tokenize_string( std::string str);
 	string			loose_Extension( std::string str);

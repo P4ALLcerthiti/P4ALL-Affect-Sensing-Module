@@ -8,9 +8,14 @@ using namespace std;
 struct txt_file
 {
 	string fileName;
-	vector < double > time ;
+	vector < double > time_GSR ;
+	vector < double > time_IBI ;
+
 	vector < string > valueNames ;
+	
 	vector < vector < double > > data ;
+	vector < double > GSR_data ;
+	vector < double > IBI_data ;
 
 	string subName;
 	int    trialNum;
@@ -18,7 +23,23 @@ struct txt_file
 	txt_file()
 	{
 		fileName = "";
-	}
+	};
+
+	~txt_file()
+	{
+		time_GSR.clear();
+		time_IBI.clear();
+
+		//valueNames.clear();
+		//
+		//for ( unsigned int i = 0 ; i < data.size() ; i++ )
+		//	data[i].clear();
+		//data.clear();
+
+		GSR_data.clear();
+		IBI_data.clear();
+
+	};
 
 };
 
