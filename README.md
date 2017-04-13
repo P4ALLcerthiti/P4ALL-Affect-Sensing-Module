@@ -23,6 +23,8 @@ Then follow the next lines inside your code to produce the features:
 	*/
 	afsm->enable_print_txt();
 	
+	afsm->set_time_segments();
+	
 	afsm->calculate_GSR_mean();
 	afsm->calculate_GSR_Standard_Deviation();
 	afsm->calculate_GSR_RootMeanSquare();
